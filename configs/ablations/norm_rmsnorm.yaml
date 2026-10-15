@@ -1,0 +1,4 @@
+inherit: ../baseline.yaml
+name: norm_rmsnorm
+model:
+  norm_type: rmsnorm

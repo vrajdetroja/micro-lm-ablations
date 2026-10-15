@@ -1,0 +1,4 @@
+inherit: ../baseline.yaml
+name: pos_nope
+model:
+  pos_type: nope

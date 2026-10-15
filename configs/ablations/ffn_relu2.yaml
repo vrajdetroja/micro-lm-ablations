@@ -1,0 +1,4 @@
+inherit: ../baseline.yaml
+name: ffn_relu2
+model:
+  ffn_type: relu2

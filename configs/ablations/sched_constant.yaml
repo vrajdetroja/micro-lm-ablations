@@ -1,0 +1,4 @@
+inherit: ../baseline.yaml
+name: sched_constant
+train:
+  schedule: constant

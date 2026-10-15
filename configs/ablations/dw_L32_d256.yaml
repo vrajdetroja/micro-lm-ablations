@@ -1,0 +1,6 @@
+inherit: ../baseline.yaml
+name: dw_L32_d256
+model:
+  n_layer: 32
+  d_model: 256
+  n_head: 4

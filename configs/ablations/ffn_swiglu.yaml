@@ -1,0 +1,4 @@
+inherit: ../baseline.yaml
+name: ffn_swiglu
+model:
+  ffn_type: swiglu

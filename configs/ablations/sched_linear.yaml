@@ -1,0 +1,5 @@
+inherit: ../baseline.yaml
+name: sched_linear
+train:
+  schedule: linear
+  min_lr_ratio: 0.0

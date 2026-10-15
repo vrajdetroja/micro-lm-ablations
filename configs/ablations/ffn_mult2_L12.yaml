@@ -1,0 +1,6 @@
+inherit: ../baseline.yaml
+name: ffn_mult2_L12
+notes: FFN 2x, depth raised to 12 to hold non-embedding params at 25.2M.
+model:
+  ffn_mult: 2.0
+  n_layer: 12

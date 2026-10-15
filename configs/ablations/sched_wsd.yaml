@@ -1,0 +1,6 @@
+inherit: ../baseline.yaml
+name: sched_wsd
+train:
+  schedule: wsd
+  decay_frac: 0.2
+  min_lr_ratio: 0.0

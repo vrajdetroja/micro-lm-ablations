@@ -1,0 +1,5 @@
+inherit: ../baseline.yaml
+name: sched_cosine0
+train:
+  schedule: cosine
+  min_lr_ratio: 0.0

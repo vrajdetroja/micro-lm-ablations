@@ -1,0 +1,23 @@
+# End-to-end check on CPU: tiny model, TinyStories validation shard.
+inherit: baseline.yaml
+name: smoke
+model:
+  n_layer: 2
+  d_model: 128
+  n_head: 4
+  max_seq_len: 256
+train:
+  data_dir: data/tinystories_mini/bpe_2048
+  seq_len: 256
+  tokens_per_step: 8192
+  total_tokens: 2000000       # 244 steps
+  lr: 3.0e-3
+  warmup_steps: 20
+  eval_tokens: 65536
+  dtype: fp32
+  compile: false
+  micro_batch_size: 16
+  eval_interval: 50
+  log_interval: 25
+  diag_interval: 50
+  ckpt_interval: 50

@@ -1,0 +1,4 @@
+inherit: ../baseline.yaml
+name: heads_16
+model:
+  n_head: 16

@@ -1,0 +1,4 @@
+inherit: ../baseline.yaml
+name: ffn_geglu
+model:
+  ffn_type: geglu

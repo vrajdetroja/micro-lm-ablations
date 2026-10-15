@@ -1,0 +1,6 @@
+inherit: ../baseline.yaml
+name: opt_lion
+train:
+  optimizer: lion
+  lr: 3.0e-4
+  weight_decay: 1.0

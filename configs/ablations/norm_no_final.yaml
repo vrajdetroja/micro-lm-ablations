@@ -1,0 +1,4 @@
+inherit: ../baseline.yaml
+name: norm_no_final
+model:
+  final_norm: false

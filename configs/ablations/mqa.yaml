@@ -1,0 +1,4 @@
+inherit: ../baseline.yaml
+name: mqa
+model:
+  n_kv_head: 1

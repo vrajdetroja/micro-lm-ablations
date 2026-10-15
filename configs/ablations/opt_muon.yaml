@@ -1,0 +1,5 @@
+inherit: ../baseline.yaml
+name: opt_muon
+train:
+  optimizer: muon
+  muon_lr: 0.02

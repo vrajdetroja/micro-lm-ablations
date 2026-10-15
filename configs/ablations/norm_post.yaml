@@ -1,0 +1,4 @@
+inherit: ../baseline.yaml
+name: norm_post
+model:
+  norm_position: post
