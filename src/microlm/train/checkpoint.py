@@ -49,6 +49,13 @@ def save_checkpoint(path: str | Path, *, model, optimizer, step: int, **extra) -
     os.replace(tmp, path)
 
 
+def save_model_only(path: str | Path, *, model, step: int, **extra) -> None:
+    path = Path(path)
+    tmp = path.with_suffix(".tmp")
+    torch.save({"model": model.state_dict(), "step": step, **extra}, tmp)
+    os.replace(tmp, path)
+
+
 def load_checkpoint(path: str | Path, map_location="cpu") -> dict:
     # Our own files; they hold numpy RNG state, which weights_only loading rejects.
     return torch.load(path, map_location=map_location, weights_only=False)

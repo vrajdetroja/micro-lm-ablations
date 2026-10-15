@@ -23,10 +23,10 @@ import torch
 
 from ..data.loader import TokenData, WindowStream
 from ..eval.induction import induction_probe
-from ..eval.losses import evaluate_tokens
+from ..eval.losses import evaluate_tokens, extrapolation_eval
 from ..model import Transformer, flops_per_token
 from ..utils import atomic_write_text, git_sha, pick_device
-from .checkpoint import load_checkpoint, save_checkpoint, set_rng_state
+from .checkpoint import load_checkpoint, save_checkpoint, save_model_only, set_rng_state
 from .config import RunConfig, load_run_config
 from .optim import build_optimizer
 from .schedule import lr_multiplier
@@ -246,7 +246,11 @@ def train(run: RunConfig) -> dict | None:
                          train_seconds=train_seconds, data_cursor=(step + 1) * W)
             save_checkpoint(ckpt_path, model=model, optimizer=optimizer, step=step + 1, **extra)
             if (step + 1) in tc.keep_ckpts:
-                save_checkpoint(out / f"ckpt_step{step + 1}.pt", model=model, optimizer=optimizer, step=step + 1, **extra)
+                kept = out / f"ckpt_step{step + 1}.pt"
+                if tc.keep_ckpts_full:
+                    save_checkpoint(kept, model=model, optimizer=optimizer, step=step + 1, **extra)
+                else:  # weights only: ~4x smaller, enough for evaluation and induction-head analysis
+                    save_model_only(kept, model=model, step=step + 1, **extra)
         if stopping:
             print(f"{run_id}: stopped at step {step + 1} (stop_at_step); rerun the same command to continue")
             return None
@@ -276,11 +280,19 @@ def train(run: RunConfig) -> dict | None:
         if data.has_split("val_ood"):
             ood = evaluate_tokens(fwd, data.split("val_ood"), data.token_bytes, tc.seq_len, None, mb, device, tc.dtype)
             summary |= {"val_ood_loss": ood["loss"], "val_ood_bpb": ood["bpb"]}
+        if data.has_split("val_long") and tc.extrapolation_lengths:
+            summary["extrapolation"] = extrapolation_eval(
+                model, data.split("val_long"), data.bos_id, data.token_bytes, tc.extrapolation_lengths,
+                device, tc.dtype, max_docs=tc.extrapolation_docs)
         probe = induction_probe(model, data.vocab_size, data.bos_id, device, n=tc.seq_len // 2)
         summary |= {f"induction_{k}": v for k, v in probe.items()}
         if peak and train_seconds:
             summary["mfu"] = fpt["total"] * summary["tokens"] / train_seconds / peak
+    # A finished run keeps its weights only (~4x smaller than the resumable checkpoint).
+    save_model_only(out / "model_final.pt", model=model, step=steps_done, run_id=run_id,
+                    run_config=run.to_dict(), git_sha=git_sha())
     atomic_write_text(out / "summary.json", json.dumps(summary, indent=2))
+    ckpt_path.unlink(missing_ok=True)
     print(f"{run_id}: done. val_iid {summary.get('val_iid_loss', float('nan')):.4f} nats, "
           f"{summary.get('val_iid_bpb', float('nan')):.4f} bpb, {train_seconds / 60:.1f} min")
     if wandb_run is not None:

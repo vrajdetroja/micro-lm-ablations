@@ -1,6 +1,0 @@
-inherit: ../baseline.yaml
-name: ffn_mult8_L5
-notes: FFN 8x, depth 5 (26.2M non-embedding params, +4%; 8x cannot match exactly at d=512).
-model:
-  ffn_mult: 8.0
-  n_layer: 5

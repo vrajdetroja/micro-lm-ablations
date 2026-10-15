@@ -101,7 +101,7 @@ def extrapolation_eval(
     ends = np.append(starts[1:], len(tokens))
     usable = [s for s, e in zip(starts, ends) if e - s >= L_max + 1][:max_docs]
     if not usable:
-        raise ValueError(f"no documents with >= {L_max + 1} tokens")
+        return {"n_docs": 0, "lengths": {}, "error": f"no documents with >= {L_max + 1} tokens"}
     token_bytes = token_bytes.to(device)
     results = {"n_docs": len(usable), "lengths": {}}
     was_training = model.training

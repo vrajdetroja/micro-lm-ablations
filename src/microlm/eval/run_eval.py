@@ -1,6 +1,9 @@
 """Post-hoc evaluation of a finished run.
 
-    python -m microlm.eval.run_eval runs/<run_id> --lengths 1024 2048 4096 8192
+    python -m microlm.eval.run_eval runs/<run_id> [--ckpt ckpt_step400.pt]
+
+The trainer already runs this evaluation at the end of every run (it is in summary.json);
+this script is for kept intermediate checkpoints and for re-evaluating on another device.
 
 Writes runs/<run_id>/eval_extrapolation.json: loss and BPB on val_long at each context
 length (same documents at every length), plus loss bucketed by position.
@@ -20,7 +23,7 @@ from .induction import induction_probe
 from .losses import extrapolation_eval
 
 
-def load_run_model(run_dir: str | Path, device: str, ckpt: str = "ckpt_latest.pt"):
+def load_run_model(run_dir: str | Path, device: str, ckpt: str = "model_final.pt"):
     run_dir = Path(run_dir)
     cfg = json.loads((run_dir / "config.json").read_text())
     model = Transformer(ModelConfig.from_dict(cfg["model"]))
@@ -32,9 +35,9 @@ def load_run_model(run_dir: str | Path, device: str, ckpt: str = "ckpt_latest.pt
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("run_dir")
-    ap.add_argument("--lengths", type=int, nargs="+", default=[1024, 2048, 4096, 8192])
+    ap.add_argument("--lengths", type=int, nargs="+", default=[512, 1024, 2048, 4096])
     ap.add_argument("--max-docs", type=int, default=200)
-    ap.add_argument("--ckpt", default="ckpt_latest.pt")
+    ap.add_argument("--ckpt", default="model_final.pt")
     ap.add_argument("--device", default="auto")
     args = ap.parse_args()
 

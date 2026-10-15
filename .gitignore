@@ -3,9 +3,11 @@ __pycache__/
 *.pyc
 .pytest_cache/
 *.egg-info/
-data/
-runs/
-tokenizers/*.json
-!tokenizers/README.md
-wandb/
 .DS_Store
+# Root-anchored: an unanchored `data/` would also hide the src/microlm/data package.
+/data/
+/runs/
+/logs/
+/wandb/
+/tokenizers/*.json
+!/tokenizers/README.md

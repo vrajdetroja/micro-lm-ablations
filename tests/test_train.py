@@ -78,7 +78,7 @@ def test_every_ablation_changes_what_it_says(tmp_path):
     from pathlib import Path
 
     base = load_run_config("configs/baseline.yaml")
-    for path in sorted(Path("configs/ablations").glob("*.yaml")):
+    for path in _generated("ablations", "ladder", "reserve"):
         d = diff(base, load_run_config(path))
         assert d, f"{path.name} is identical to the baseline"
         assert all(k.startswith(("model.", "train.")) for k in d)
@@ -93,14 +93,43 @@ def test_unknown_fields_rejected():
 
 def test_baseline_step_arithmetic():
     t = load_run_config("configs/baseline.yaml").train
-    assert t.windows_per_step == 512 and t.total_steps == 1144
+    assert t.windows_per_step == 256 and t.total_steps == 1620 and t.grad_accum == 4
+
+
+def _generated(*dirs):
+    from pathlib import Path
+
+    return [p for d in dirs for p in sorted(Path("configs", d).glob("*.yaml"))]
+
+
+def test_vocab_variants_are_matched():
+    from microlm.model import flops_per_token, param_counts
+
+    base = load_run_config("configs/baseline.yaml")
+    base_params = param_counts(base.model)["total"]
+    base_flops = flops_per_token(base.model, 512)["total"] * base.train.total_tokens
+    for path in _generated("ablations"):
+        if not path.stem.startswith("vocab_"):
+            continue
+        r = load_run_config(path)
+        r.model.vocab_size = int(path.stem.split("_")[1])
+        assert abs(param_counts(r.model)["total"] / base_params - 1) < 0.05, path.stem
+        flops = flops_per_token(r.model, 512)["total"] * r.train.total_steps * r.train.tokens_per_step
+        assert abs(flops / base_flops - 1) < 0.01, path.stem
+
+
+def test_ladder_shares_the_schedule():
+    for path in _generated("ladder"):
+        t = load_run_config(path).train
+        assert t.total_steps == 1620 and t.warmup_steps == 200, path.stem
 
 
 # -- schedules ------------------------------------------------------------------------
 
 
 def _cfg(**kw):
-    return TrainConfig(**{"total_tokens": 524288 * 1000, **kw})
+    # 1000 steps at the default tokens_per_step
+    return TrainConfig(**{"total_tokens": TrainConfig().tokens_per_step * 1000, **kw})
 
 
 def test_warmup_is_linear():
@@ -128,7 +157,7 @@ def test_wsd_is_flat_until_decay():
 
 def test_wsd_branch_shares_prefix():
     # A shorter WSD run is a valid branch of a longer one until its own decay starts.
-    long, short = _cfg(schedule="wsd"), _cfg(schedule="wsd", total_tokens=524288 * 500)
+    long, short = _cfg(schedule="wsd"), _cfg(schedule="wsd", total_tokens=TrainConfig().tokens_per_step * 500)
     assert all(lr_multiplier(s, long) == lr_multiplier(s, short) for s in range(400))
 
 

@@ -21,17 +21,27 @@ def load(path: str) -> list[dict]:
         return list(csv.DictReader(f))
 
 
-def best_lr(rows: list[dict], metric: str) -> tuple[str, list[float]]:
-    """Group a variant's runs by LR; return the LR with the lowest seed-mean, and its values."""
-    by_lr: dict[str, list[float]] = defaultdict(list)
+def best_lr(rows: list[dict], metric: str, fresh: bool = False) -> tuple[str, list[float]]:
+    """Group a variant's runs by LR; return the LR with the lowest seed-mean, and its values.
+
+    With fresh=True, return only the values of seeds other than 0: seed 0 chose the LR, so its
+    value is biased low, and the fresh seeds give an unbiased estimate at that LR.
+    """
+    by_lr: dict[str, list[tuple[int, float]]] = defaultdict(list)
     for r in rows:
         if r.get(metric) not in (None, "") and r.get("diverged") != "True":
             lr_key = r["train.lr"] if r["train.optimizer"] != "muon" else f"{r['train.lr']}/{r['train.muon_lr']}"
-            by_lr[lr_key].append(float(r[metric]))
+            by_lr[lr_key].append((int(r["train.seed"]), float(r[metric])))
     if not by_lr:
         return "-", []
-    lr = min(by_lr, key=lambda k: statistics.mean(by_lr[k]))
-    return lr, by_lr[lr]
+    # Choose the LR exactly as protocol.py does, by the seed-0 sweep. Choosing by the mean over
+    # whatever seeds exist would let an LR with one lucky run beat one with three honest runs.
+    seed0 = {k: v for k in by_lr for seed, v in by_lr[k] if seed == 0}
+    if seed0:
+        lr = min(seed0, key=seed0.get)
+    else:
+        lr = min(by_lr, key=lambda k: statistics.mean(v for _, v in by_lr[k]))
+    return lr, [v for seed, v in by_lr[lr] if not (fresh and seed == 0)]
 
 
 def main() -> None:
@@ -39,7 +49,15 @@ def main() -> None:
     ap.add_argument("--csv", default="results/all_runs.csv")
     ap.add_argument("--metric", default="val_iid_loss")
     ap.add_argument("--baseline", default="baseline")
+    ap.add_argument("--best-lr", metavar="NAME", help="print only NAME's best LR (for the protocol scripts) and exit")
     args = ap.parse_args()
+
+    if args.best_lr:
+        lr, vals = best_lr([r for r in load(args.csv) if r["name"] == args.best_lr], args.metric)
+        if not vals:
+            raise SystemExit(f"no finished runs named {args.best_lr!r}")
+        print(lr)
+        return
 
     by_name: dict[str, list[dict]] = defaultdict(list)
     for r in load(args.csv):
@@ -53,7 +71,7 @@ def main() -> None:
     sigma = statistics.stdev(base)
     base_mean = statistics.mean(base)
     print(f"baseline @ lr {base_lr}: {base_mean:.4f} (n={len(base)}), sigma = {sigma:.4f}, 2 sigma = {2 * sigma:.4f}\n")
-    print(f"{'variant':<22}{'best lr':>14}{'n':>4}{'mean':>10}{'delta':>10}{'range':>18}  verdict")
+    print(f"{'variant':<22}{'best lr':>14}{'n':>4}{'mean':>10}{'delta':>10}{'fresh':>10}{'range':>18}  verdict")
     for name in sorted(by_name):
         if name == args.baseline:
             continue
@@ -70,7 +88,9 @@ def main() -> None:
         else:
             verdict = "better" if delta < 0 else "worse"
         rng = f"[{min(vals):.4f}, {max(vals):.4f}]"
-        print(f"{name:<22}{lr:>14}{len(vals):>4}{m:>10.4f}{delta:>+10.4f}{rng:>18}  {verdict}")
+        _, fresh = best_lr(by_name[name], args.metric, fresh=True)
+        fresh_s = f"{statistics.mean(fresh):.4f}" if fresh else "-"
+        print(f"{name:<22}{lr:>14}{len(vals):>4}{m:>10.4f}{delta:>+10.4f}{fresh_s:>10}{rng:>18}  {verdict}")
 
 
 if __name__ == "__main__":

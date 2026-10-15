@@ -1,4 +1,0 @@
-inherit: ../baseline.yaml
-name: untied
-model:
-  tie_embeddings: false

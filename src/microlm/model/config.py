@@ -13,11 +13,11 @@ NORM_TYPES = ("layernorm", "rmsnorm")
 @dataclass
 class ModelConfig:
     vocab_size: int = 8192
-    n_layer: int = 8
-    d_model: int = 512
-    n_head: int = 8
+    n_layer: int = 6
+    d_model: int = 384
+    n_head: int = 6
     n_kv_head: int | None = None  # None = n_head (MHA); 1 = MQA; otherwise GQA
-    max_seq_len: int = 1024  # training context; sizes the learned position table
+    max_seq_len: int = 512  # training context; sizes the learned position table
 
     pos_type: str = "learned"
     rope_base: float = 10000.0

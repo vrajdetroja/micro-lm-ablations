@@ -1,6 +1,0 @@
-inherit: ../baseline.yaml
-name: dw_L4_d768
-model:
-  n_layer: 4
-  d_model: 768
-  n_head: 12

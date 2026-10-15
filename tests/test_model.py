@@ -52,7 +52,7 @@ def test_unmatched_swiglu_would_fail():
 
 def test_baseline_size():
     pc = param_counts(ModelConfig())
-    assert 25.0e6 < pc["non_embedding"] < 25.3e6  # 12 * L * d^2 = 25.17M plus norms
+    assert 10.6e6 < pc["non_embedding"] < 10.65e6  # 12 * L * d^2 = 10.62M plus norms
 
 
 @pytest.mark.parametrize("L,d", [(4, 768), (8, 512), (16, 384), (32, 256)])
@@ -64,7 +64,7 @@ def test_depth_width_table(L, d):
 def test_flops_terms():
     f = flops_per_token(ModelConfig(), 1024)
     assert f["total"] == f["6N"] + f["head"] + f["attention"]
-    assert f["head"] == 6 * 512 * 8192
+    assert f["head"] == 6 * 384 * 8192
 
 
 @pytest.mark.parametrize("kw", [v for v in VARIANTS if "ffn_type" not in v and "bias" not in v],

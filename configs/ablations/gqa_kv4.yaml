@@ -1,4 +1,0 @@
-inherit: ../baseline.yaml
-name: gqa_kv4
-model:
-  n_kv_head: 4

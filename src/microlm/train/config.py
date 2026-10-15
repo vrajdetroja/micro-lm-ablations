@@ -33,12 +33,12 @@ class TrainConfig:
     data_seed: int = 0  # order of training windows; fixed across the whole study
     data_order: str = "shuffled"  # shuffled | sequential
 
-    seq_len: int = 1024
-    tokens_per_step: int = 524_288  # held constant across every run (grad accumulation absorbs micro-batch changes)
-    total_tokens: int = 600_000_000
+    seq_len: int = 512
+    tokens_per_step: int = 131_072  # held constant across every run (grad accumulation absorbs micro-batch changes)
+    total_tokens: int = 212_336_640  # 1620 steps; ~20 tokens per non-embedding param of the unit model
 
     optimizer: str = "adamw"
-    lr: float = 3e-3  # peak LR for AdamW/Lion; for Muon, the LR of its AdamW-managed params
+    lr: float = 4e-3  # peak LR for AdamW/Lion; for Muon, the LR of its AdamW-managed params
     muon_lr: float = 0.02
     muon_momentum: float = 0.95
     muon_ns_steps: int = 5
@@ -49,29 +49,32 @@ class TrainConfig:
     grad_clip: float = 1.0
 
     schedule: str = "cosine"
-    warmup_steps: int = 250
+    warmup_steps: int = 200
     min_lr_ratio: float = 0.1
     decay_frac: float = 0.2  # WSD: fraction of steps spent in the final decay
 
     dtype: str = "bf16"  # bf16 autocast with fp32 master weights; fp32 for CPU debugging
-    eval_tokens: int = 2_097_152  # tokens per periodic val_iid eval
+    eval_tokens: int = 1_048_576  # tokens per periodic val_iid eval
     final_eval_tokens: int | None = None  # None = the whole val_iid split
     init_from: str | None = None  # checkpoint to branch from (e.g. a WSD stable-phase checkpoint)
 
     # -- operational: excluded from the run hash ---------------------------------------
-    micro_batch_size: int = 16
+    micro_batch_size: int = 64
     compile: bool = True
     device: str = "auto"
-    eval_interval: int = 100
-    log_interval: int = 10
-    diag_interval: int = 100
-    ckpt_interval: int = 100
-    keep_ckpts: list[int] = field(default_factory=list)
+    eval_interval: int = 200
+    log_interval: int = 20
+    diag_interval: int = 200
+    ckpt_interval: int = 200
+    keep_ckpts: list[int] = field(default_factory=list)  # extra permanent checkpoints, e.g. for induction-head timing
+    keep_ckpts_full: bool = False  # kept checkpoints include optimizer state (needed to branch a WSD decay)
     peak_flops: float | None = None
     wandb_project: str | None = None
     out_dir: str = "runs"
     verify_data: bool = True
     stop_at_step: int | None = None  # end this invocation at this step (with a checkpoint); rerun to continue
+    extrapolation_lengths: list[int] = field(default_factory=lambda: [512, 1024, 2048, 4096])
+    extrapolation_docs: int = 200
 
     def __post_init__(self):
         if self.schedule not in SCHEDULES:
@@ -100,7 +103,8 @@ class TrainConfig:
 
 OPERATIONAL_FIELDS = {
     "micro_batch_size", "compile", "device", "eval_interval", "log_interval", "diag_interval",
-    "ckpt_interval", "keep_ckpts", "peak_flops", "wandb_project", "out_dir", "verify_data", "stop_at_step",
+    "ckpt_interval", "keep_ckpts", "keep_ckpts_full", "peak_flops", "wandb_project", "out_dir", "verify_data",
+    "stop_at_step", "extrapolation_lengths", "extrapolation_docs",
 }
 
 

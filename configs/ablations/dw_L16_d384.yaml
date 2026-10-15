@@ -1,6 +1,0 @@
-inherit: ../baseline.yaml
-name: dw_L16_d384
-model:
-  n_layer: 16
-  d_model: 384
-  n_head: 6
