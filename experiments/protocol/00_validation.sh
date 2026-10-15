@@ -12,6 +12,7 @@ SHORT="train.total_tokens=26214400 train.warmup_steps=50 train.extrapolation_len
 python -m microlm.train.trainer --config configs/baseline.yaml --set $SHORT train.out_dir=runs/validate/a
 python -m microlm.train.trainer --config configs/baseline.yaml --set $SHORT train.out_dir=runs/validate/b train.stop_at_step=100
 python -m microlm.train.trainer --config configs/baseline.yaml --set $SHORT train.out_dir=runs/validate/b
-python analysis/compare_runs.py runs/validate/a runs/validate/b
+python -m microlm.train.trainer --config configs/baseline.yaml --set $SHORT train.out_dir=runs/validate/c
+python analysis/check_resume.py runs/validate/a runs/validate/b runs/validate/c --resume-step 100
 # Every planned job, listed with its training FLOPs.
 python experiments/launch/sweep.py --config configs/baseline.yaml configs/ablations/*.yaml configs/ladder/*.yaml --dry-run | head -1

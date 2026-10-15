@@ -70,10 +70,20 @@ def main() -> None:
         raise SystemExit("need >= 2 baseline seeds at the best LR to estimate the noise floor")
     sigma = statistics.stdev(base)
     base_mean = statistics.mean(base)
-    print(f"baseline @ lr {base_lr}: {base_mean:.4f} (n={len(base)}), sigma = {sigma:.4f}, 2 sigma = {2 * sigma:.4f}\n")
+    print(f"baseline @ lr {base_lr}: {base_mean:.4f} (n={len(base)}), sigma = {sigma:.4f}, 2 sigma = {2 * sigma:.4f}")
+    # sigma_kernel: same seed, same config, repeated. On a GPU with non-deterministic kernels these
+    # still differ; sigma (across seeds) includes this noise, sigma_kernel isolates it.
+    repeat = f"{args.baseline}_repeat"
+    same_seed = [float(r[args.metric]) for r in by_name[args.baseline] + by_name.get(repeat, [])
+                 if r["train.lr"] == base_lr and r["train.seed"] == "0"
+                 and r.get(args.metric) not in (None, "") and r.get("diverged") != "True"]
+    if repeat in by_name and len(same_seed) >= 2:
+        sigma_k = statistics.stdev(same_seed)
+        print(f"sigma_kernel (seed 0 repeated, n={len(same_seed)}) = {sigma_k:.4f} ({sigma_k / sigma:.0%} of sigma)")
+    print()
     print(f"{'variant':<22}{'best lr':>14}{'n':>4}{'mean':>10}{'delta':>10}{'fresh':>10}{'range':>18}  verdict")
     for name in sorted(by_name):
-        if name == args.baseline:
+        if name in (args.baseline, f"{args.baseline}_repeat"):
             continue
         lr, vals = best_lr(by_name[name], args.metric)
         if not vals:
