@@ -38,8 +38,12 @@ def row(summary: dict) -> dict:
 
 
 def collect(runs_dir: str | Path) -> list[dict]:
-    rows = [row(json.loads(p.read_text())) for p in sorted(Path(runs_dir).rglob("summary.json"))]
-    return sorted(rows, key=lambda r: r["run_id"])
+    rows = []
+    for p in sorted(Path(runs_dir).rglob("summary.json")):
+        r = row(json.loads(p.read_text()))
+        r["run_dir"] = str(p.parent.relative_to(runs_dir))  # where the run actually lives
+        rows.append(r)
+    return sorted(rows, key=lambda r: (r["run_id"], r["run_dir"]))
 
 
 def main() -> None:

@@ -9,9 +9,9 @@ The subject is a language model; the deliverable is the experimental method. Eve
 is reported against a noise floor σ (the standard deviation over baseline seeds), and any
 effect smaller than 2σ is reported as **inconclusive**, not as a finding.
 
-> **Status:** infrastructure complete and tested (101 tests); FineWeb-Edu frozen for four
-> vocabularies; CUDA path validated (measured **55% MFU** on an RTX 4090). No ablation
-> results yet. Next: the noise floor σ.
+> **Status:** noise floor measured. Baseline best LR 4e-3; **σ = 0.0036 nats** (5 seeds),
+> so effects under **2σ = 0.0072** are inconclusive. GPU kernel noise alone is 78% of σ.
+> 106 tests. Next: Tier A, after preregistrations 002–006.
 
 ---
 
@@ -109,7 +109,7 @@ configs/       baseline.yaml, smoke.yaml, generate.py → ablations/ (21), ladde
 experiments/   preregistrations/, launch/ (sweep, throughput bench), protocol/ (one script
                per stage), prepare_data.sh
 analysis/      collect.py (runs → results/all_runs.csv), compare.py (2σ verdicts)
-tests/         101 tests
+tests/         106 tests
 ```
 
 ### Things the tests pin down

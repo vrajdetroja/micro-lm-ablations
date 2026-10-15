@@ -72,7 +72,12 @@ def test_special_purpose_runs_never_enter_the_comparison(tmp_path, capsys, monke
 
     rows = [dict(row(lr, 0, v), name="baseline") for lr, v in [(0.002, 3.633), (0.004, 3.591), (0.008, 3.601)]]
     rows += [dict(row(0.004, 0, 5.93, out_dir=f"runs/resume_check/{x}", total_tokens=26214400), name="baseline")
-             for x in "abc"]
+             for x in "ab"]
+    # a run moved into a subdirectory after the fact is excluded by where it lives
+    rows += [dict(row(0.004, 0, 5.93, total_tokens=26214400), name="baseline", run_dir="local/baseline__x")]
+    for r in rows:  # where collect.py would find each run
+        sub = r["train.out_dir"].removeprefix("runs").strip("/")
+        r.setdefault("run_dir", f"{sub}/baseline__y" if sub else "baseline__y")
     path = tmp_path / "runs.csv"
     with open(path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))

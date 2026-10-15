@@ -58,4 +58,32 @@ run as a fresh same-seed repeat does: mean |Δ train loss| ≤ 3 × the repeat's
 (`analysis/check_resume.py`). On a second accelerator a correct resume passed (0.0008 against
 0.0006) and a deliberately broken one, with optimizer state wiped, failed (0.050).
 
-## Outcome *(filled in after)*
+## Outcome *(filled in 2026-10-16)*
+
+**LR sweep, seed 0 (val_iid nats):** 1e-3 3.8000 · 2e-3 3.6326 · **4e-3 3.5909** · 8e-3 3.6005 ·
+1.6e-2 5.7084 (unstable, did not recover). The optimum is interior, so no extension was needed.
+Prediction "4e-3 or 8e-3": **held** (4e-3).
+
+**Seeds 0–4 at 4e-3:** 3.5909, 3.5883, 3.5964, 3.5915, 3.5870. Mean 3.5908, range 0.0094.
+**σ_seed = 0.0036 nats** (0.0013 bits per byte); 95% CI ≈ [0.0022, 0.0104] (χ², 4 df).
+Prediction 0.004–0.015: **missed, low.** The noise floor is tighter than predicted, so smaller
+effects are resolvable. The CI is wide, though: five seeds bound σ only within about 3×.
+
+**Same-seed repeats:** 3.5909 (the seed-0 run), 3.5880, 3.5853. **σ_kernel = 0.0028 nats,
+78% of σ_seed**; 95% CI ≈ [0.0015, 0.018] (χ², 2 df, coarse). Prediction 50–100%: **held.**
+GPU kernel non-determinism alone produces most of the run-to-run spread, in line with
+Summers & Dinneen (2021). Falsifier (< 25%): not triggered.
+
+**Resume check on the GPU:** PASS (mean |Δ train loss| after resuming 0.0103 against the
+same-seed repeat's 0.0063).
+
+**LR-selection bias:** the mean of the four fresh seeds (3.5908) equals the five-seed mean
+(3.5908). Choosing the LR on seed 0 introduced no visible bias at this σ.
+
+**Threshold for every later ablation: 2σ = 0.0072 nats.** σ > 0.02 falsifier: not triggered.
+
+**Predictions: 2 of 3 held** (best LR, σ_kernel share). σ itself came in below the range.
+
+**Forward note** (to be preregistered with Tier A, not applied here): every Tier A variant gets
+3 seeds at its best LR. Pooling the within-variant variance across 16 variants gives σ with
+32 degrees of freedom instead of 4, a much tighter estimate than these five seeds alone.

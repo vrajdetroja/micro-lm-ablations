@@ -18,7 +18,7 @@ from collections import defaultdict
 
 # Fields that may differ between runs of one variant: what the protocol sweeps, plus
 # operational settings that do not change the trained model.
-VARYING = {"train.lr", "train.seed", "train.muon_lr", "train.micro_batch_size", "train.compile",
+VARYING = {"run_dir", "train.lr", "train.seed", "train.muon_lr", "train.micro_batch_size", "train.compile",
            "train.device", "train.eval_interval", "train.log_interval", "train.diag_interval",
            "train.ckpt_interval", "train.keep_ckpts", "train.keep_ckpts_full", "train.peak_flops",
            "train.wandb_project", "train.out_dir", "train.verify_data", "train.stop_at_step",
@@ -36,7 +36,10 @@ def comparable(rows: list[dict]) -> list[dict]:
     Special-purpose runs (resume checks, validation, same-seed repeats) are written to
     subdirectories and never mix in. As a second guard, every comparable run of one name must
     share its config except for the fields in VARYING."""
-    top = [r for r in rows if r.get("train.out_dir", "runs") == "runs"]
+    def top_level(r: dict) -> bool:  # the run's actual location decides; out_dir is the fallback
+        return "/" not in r["run_dir"] if r.get("run_dir") else r.get("train.out_dir", "runs") == "runs"
+
+    top = [r for r in rows if top_level(r)]
     by_name: dict[str, set] = defaultdict(set)
     for r in top:
         key = tuple(sorted((k, v) for k, v in r.items() if k.startswith(("model.", "train.")) and k not in VARYING))
