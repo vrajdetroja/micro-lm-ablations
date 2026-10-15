@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import math
 import shutil
 
@@ -266,3 +267,21 @@ def test_resume_on_accelerator(synthetic_data, tmp_path):
     resumed = train(tiny_run(synthetic_data, tmp_path, **kw))
     assert resumed["steps"] == 12
     assert len(losses(tmp_path / resumed["run_id"])) == 12
+
+
+def test_exponent_floats_parse_as_numbers(tmp_path):
+    # Regression: PyYAML read "1e-3" as a string, and every such LR crashed inside AdamW.
+    r = load_run_config("configs/baseline.yaml", ["train.lr=1e-3", "train.muon_lr=2E-2", "train.eps=1e-08"])
+    assert r.train.lr == 0.001 and r.train.muon_lr == 0.02 and r.train.eps == 1e-8
+    assert isinstance(r.train.total_tokens, int) and isinstance(r.train.weight_decay, float)
+    cfg = tmp_path / "c.yaml"
+    cfg.write_text("inherit: " + str(Path("configs/baseline.yaml").resolve()) + "\nname: x\ntrain:\n  lr: 3e-4\n")
+    assert load_run_config(cfg).train.lr == 0.0003
+    assert load_run_config("configs/baseline.yaml", ["train.lr=1"]).train.lr == 1.0  # int widened
+
+
+def test_wrong_types_fail_with_the_field_name():
+    with pytest.raises(ValueError, match="train.lr must be float"):
+        load_run_config("configs/baseline.yaml", ["train.lr=fast"])
+    with pytest.raises(ValueError, match="model.n_layer must be int"):
+        load_run_config("configs/baseline.yaml", ["model.n_layer=6.5"])

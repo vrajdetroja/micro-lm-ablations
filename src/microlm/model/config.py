@@ -43,6 +43,9 @@ class ModelConfig:
     pad_vocab_to: int = 64  # embedding rows are padded for kernel efficiency; padded logits are dropped
 
     def __post_init__(self):
+        from ..train.config import check_types
+
+        check_types(self, "model")
         if self.pos_type not in POS_TYPES:
             raise ValueError(f"pos_type must be one of {POS_TYPES}")
         if self.ffn_type not in FFN_TYPES:

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import re
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,43 @@ import yaml
 
 from ..model.config import ModelConfig
 from ..utils import hash_obj
+
+class _Loader(yaml.SafeLoader):
+    """PyYAML follows YAML 1.1, where a float needs a dot: `1e-3` loads as the *string*
+    "1e-3". Add the YAML 1.2 forms so exponent-only numbers are floats."""
+
+
+_Loader.add_implicit_resolver(
+    "tag:yaml.org,2002:float",
+    re.compile(r"^[-+]?(?:[0-9][0-9_]*)(?:\.[0-9_]*)?[eE][-+]?[0-9]+$"),
+    list("-+0123456789"),
+)
+
+
+def _yaml(text: str):
+    return yaml.load(text, Loader=_Loader)
+
+
+def check_types(obj, section: str) -> None:
+    """Fail at load time, with the field's name, if a numeric field holds anything else."""
+    for f in fields(obj):
+        v = getattr(obj, f.name)
+        kinds = {t.strip() for t in str(f.type).split("|")}
+        if v is None and "None" in kinds:
+            continue
+        if "bool" in kinds:
+            ok = isinstance(v, bool)
+        elif "float" in kinds:
+            ok = isinstance(v, (int, float)) and not isinstance(v, bool)
+            if ok:
+                setattr(obj, f.name, float(v))
+        elif "int" in kinds:
+            ok = isinstance(v, int) and not isinstance(v, bool)
+        else:
+            continue
+        if not ok:
+            raise ValueError(f"{section}.{f.name} must be {f.type}, got {v!r} ({type(v).__name__})")
+
 
 SCHEDULES = ("constant", "cosine", "linear", "wsd")
 OPTIMIZERS = ("adamw", "lion", "muon")
@@ -77,6 +115,7 @@ class TrainConfig:
     extrapolation_docs: int = 200
 
     def __post_init__(self):
+        check_types(self, "train")
         if self.schedule not in SCHEDULES:
             raise ValueError(f"schedule must be one of {SCHEDULES}")
         if self.optimizer not in OPTIMIZERS:
@@ -158,7 +197,7 @@ def _deep_merge(base: dict, over: dict) -> dict:
 def load_yaml(path: str | Path) -> dict:
     """Load a config, resolving `inherit:` chains (paths relative to the including file)."""
     path = Path(path)
-    d = yaml.safe_load(path.read_text()) or {}
+    d = _yaml(path.read_text()) or {}
     parent = d.pop("inherit", None)
     if parent is not None:
         d = _deep_merge(load_yaml(path.parent / parent), d)
@@ -172,7 +211,7 @@ def apply_overrides(d: dict, overrides: list[str]) -> dict:
         key, _, raw = item.partition("=")
         if not _:
             raise ValueError(f"override {item!r} is not key=value")
-        value = yaml.safe_load(raw)
+        value = _yaml(raw)
         node = d
         parts = key.split(".")
         for p in parts[:-1]:
