@@ -4,6 +4,9 @@
 2. Every variant is compared optimum-to-optimum: for each variant, the LR with the best
    seed-mean metric, against the baseline at *its* best LR.
 3. A difference smaller than 2 * sigma is reported as INCONCLUSIVE, not as a result.
+4. Once variants have seeds of their own, sigma_pooled (within-variant variance pooled over
+   every variant at its best LR) is a second noise estimate. An effect must clear 2 sigma
+   under both; clearing only one is THRESHOLD-SENSITIVE (preregistration 002, shared rule 3).
 
     python analysis/compare.py [--csv results/all_runs.csv] [--metric val_iid_loss]
 """
@@ -114,6 +117,17 @@ def main() -> None:
     if repeats and len(same_seed) >= 2:
         sigma_k = statistics.stdev(same_seed)
         print(f"sigma_kernel (seed 0 repeated, n={len(same_seed)}) = {sigma_k:.4f} ({sigma_k / sigma:.0%} of sigma)")
+    # Pooled within-variant sigma: each variant's seeds at its best LR, pooled by degrees of freedom.
+    num = df = 0
+    for rs in by_name.values():
+        _, vals = best_lr(rs, args.metric)
+        if len(vals) >= 2:
+            num += (len(vals) - 1) * statistics.variance(vals)
+            df += len(vals) - 1
+    sigma_p = (num / df) ** 0.5 if df > len(base) - 1 else None
+    if sigma_p is not None:
+        print(f"sigma_pooled = {sigma_p:.4f} ({df} df), 2 sigma_pooled = {2 * sigma_p:.4f}")
+    thresholds = [2 * sigma] + ([2 * sigma_p] if sigma_p is not None else [])
     print()
     print(f"{'variant':<22}{'best lr':>14}{'n':>4}{'mean':>10}{'delta':>10}{'fresh':>10}{'range':>18}  verdict")
     for name in sorted(by_name):
@@ -127,10 +141,14 @@ def main() -> None:
         delta = m - base_mean
         if len(vals) < 3:
             verdict = "needs >= 3 seeds"
-        elif abs(delta) < 2 * sigma:
-            verdict = "INCONCLUSIVE"
         else:
-            verdict = "better" if delta < 0 else "worse"
+            clears = [abs(delta) >= t for t in thresholds]
+            if all(clears):
+                verdict = "better" if delta < 0 else "worse"
+            elif any(clears):
+                verdict = "THRESHOLD-SENSITIVE"
+            else:
+                verdict = "INCONCLUSIVE"
         rng = f"[{min(vals):.4f}, {max(vals):.4f}]"
         _, fresh = best_lr(by_name[name], args.metric, fresh=True)
         fresh_s = f"{statistics.mean(fresh):.4f}" if fresh else "-"

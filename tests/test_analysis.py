@@ -94,3 +94,30 @@ def test_special_purpose_runs_never_enter_the_comparison(tmp_path, capsys, monke
         w.writerows(mixed)
     with pytest.raises(SystemExit, match="different configs"):
         compare.main()
+
+
+def test_pooled_sigma_and_threshold_sensitive_verdicts(tmp_path, capsys, monkeypatch):
+    import csv
+
+    import compare
+
+    def runs(name, vals):
+        return [dict(row(0.004, s, v), name=name, run_dir=f"{name}__{s}") for s, v in enumerate(vals)]
+
+    # baseline sigma 0.0036-ish; noisy variants inflate the pooled sigma to ~0.009
+    rows = runs("baseline", [3.5909, 3.5883, 3.5964, 3.5915, 3.5870])
+    rows += runs("noisy_a", [3.570, 3.585, 3.592]) + runs("noisy_b", [3.600, 3.585, 3.580])
+    rows += runs("clear_win", [3.560, 3.561, 3.559])   # delta -0.031: clears both thresholds
+    rows += runs("borderline", [3.581, 3.582, 3.580])  # delta -0.0098: clears 2*0.0036 only
+    path = tmp_path / "runs.csv"
+    with open(path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+    monkeypatch.setattr("sys.argv", ["compare.py", "--csv", str(path)])
+    compare.main()
+    out = capsys.readouterr().out
+    assert "sigma_pooled" in out and "(12 df)" in out
+    lines = {l.split()[0]: l for l in out.splitlines() if l and l.split()[0] in ("clear_win", "borderline")}
+    assert lines["clear_win"].rstrip().endswith("better")
+    assert lines["borderline"].rstrip().endswith("THRESHOLD-SENSITIVE")
