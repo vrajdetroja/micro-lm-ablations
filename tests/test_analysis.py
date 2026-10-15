@@ -8,9 +8,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "analysis"))
 from compare import best_lr  # noqa: E402
 
 
-def row(lr, seed, loss, diverged=False):
+def row(lr, seed, loss, diverged=False, out_dir="runs", total_tokens=212336640):
     return {"train.lr": str(lr), "train.optimizer": "adamw", "train.seed": str(seed),
-            "val_iid_loss": str(loss), "diverged": str(diverged)}
+            "val_iid_loss": str(loss), "diverged": str(diverged), "train.out_dir": out_dir,
+            "train.total_tokens": str(total_tokens)}
 
 
 def test_best_lr_follows_the_protocol_not_the_lucky_single_run():
@@ -34,7 +35,8 @@ def test_sigma_kernel_and_repeats_stay_out_of_the_variant_table(tmp_path, capsys
     import compare
 
     rows = [dict(row(0.004, s, v), name="baseline") for s, v in enumerate([3.50, 3.52, 3.51, 3.53, 3.49])]
-    rows += [dict(row(0.004, 0, v), name="baseline_repeat") for v in (3.505, 3.495)]
+    rows += [dict(row(0.004, 0, v, out_dir=f"runs/repeats/r{i}"), name="baseline_repeat")
+             for i, v in enumerate((3.505, 3.495))]
     rows += [dict(row(0.004, s, v), name="pos_rope") for s, v in enumerate([3.40, 3.41, 3.42])]
     path = tmp_path / "runs.csv"
     with open(path, "w", newline="") as f:
@@ -58,3 +60,32 @@ def test_resume_check_verdict():
     assert mean_abs_diff(a, [5.0, 4.0, 3.0, 3.0, 2.9], 3) == pytest.approx(0.1)
     assert verdict(ab=0.0008, ac=0.0006)  # resumed run inside the kernel-noise envelope
     assert not verdict(ab=0.050, ac=0.0006)  # optimizer state lost on resume
+
+
+def test_special_purpose_runs_never_enter_the_comparison(tmp_path, capsys, monkeypatch):
+    # Regression: short resume-check runs share the name "baseline" and the
+    # default LR; one of them overwrote the real seed-0 result at that LR, so the protocol script picked
+    # the wrong best LR.
+    import csv
+
+    import compare
+
+    rows = [dict(row(lr, 0, v), name="baseline") for lr, v in [(0.002, 3.633), (0.004, 3.591), (0.008, 3.601)]]
+    rows += [dict(row(0.004, 0, 5.93, out_dir=f"runs/resume_check/{x}", total_tokens=26214400), name="baseline")
+             for x in "abc"]
+    path = tmp_path / "runs.csv"
+    with open(path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+    monkeypatch.setattr("sys.argv", ["compare.py", "--csv", str(path), "--best-lr", "baseline"])
+    compare.main()
+    assert capsys.readouterr().out.strip() == "0.004"
+
+    mixed = rows[:3] + [dict(row(0.004, 1, 3.6, total_tokens=26214400), name="baseline")]
+    with open(path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(mixed[0]))
+        w.writeheader()
+        w.writerows(mixed)
+    with pytest.raises(SystemExit, match="different configs"):
+        compare.main()

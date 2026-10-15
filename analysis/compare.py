@@ -16,9 +16,38 @@ import statistics
 from collections import defaultdict
 
 
+# Fields that may differ between runs of one variant: what the protocol sweeps, plus
+# operational settings that do not change the trained model.
+VARYING = {"train.lr", "train.seed", "train.muon_lr", "train.micro_batch_size", "train.compile",
+           "train.device", "train.eval_interval", "train.log_interval", "train.diag_interval",
+           "train.ckpt_interval", "train.keep_ckpts", "train.keep_ckpts_full", "train.peak_flops",
+           "train.wandb_project", "train.out_dir", "train.verify_data", "train.stop_at_step",
+           "train.extrapolation_lengths", "train.extrapolation_docs"}
+
+
 def load(path: str) -> list[dict]:
     with open(path) as f:
         return list(csv.DictReader(f))
+
+
+def comparable(rows: list[dict]) -> list[dict]:
+    """Runs that enter comparisons: those in the top-level runs/ directory.
+
+    Special-purpose runs (resume checks, validation, same-seed repeats) are written to
+    subdirectories and never mix in. As a second guard, every comparable run of one name must
+    share its config except for the fields in VARYING."""
+    top = [r for r in rows if r.get("train.out_dir", "runs") == "runs"]
+    by_name: dict[str, set] = defaultdict(set)
+    for r in top:
+        key = tuple(sorted((k, v) for k, v in r.items() if k.startswith(("model.", "train.")) and k not in VARYING))
+        by_name[r["name"]].add(key)
+    for name, keys in by_name.items():
+        if len(keys) > 1:
+            a, b = (dict(k) for k in list(keys)[:2])
+            diff = sorted(k for k in a.keys() | b.keys() if a.get(k) != b.get(k))
+            raise SystemExit(f"runs named {name!r} have different configs ({', '.join(diff)}); "
+                             "give special-purpose runs their own name or out_dir")
+    return top
 
 
 def best_lr(rows: list[dict], metric: str, fresh: bool = False) -> tuple[str, list[float]]:
@@ -52,16 +81,18 @@ def main() -> None:
     ap.add_argument("--best-lr", metavar="NAME", help="print only NAME's best LR (for the protocol scripts) and exit")
     args = ap.parse_args()
 
+    rows = load(args.csv)
     if args.best_lr:
-        lr, vals = best_lr([r for r in load(args.csv) if r["name"] == args.best_lr], args.metric)
+        lr, vals = best_lr([r for r in comparable(rows) if r["name"] == args.best_lr], args.metric)
         if not vals:
             raise SystemExit(f"no finished runs named {args.best_lr!r}")
         print(lr)
         return
 
     by_name: dict[str, list[dict]] = defaultdict(list)
-    for r in load(args.csv):
+    for r in comparable(rows):
         by_name[r["name"]].append(r)
+    repeats = [r for r in rows if r["name"] == f"{args.baseline}_repeat"]
     if args.baseline not in by_name:
         raise SystemExit(f"no runs named {args.baseline!r}")
 
@@ -74,10 +105,10 @@ def main() -> None:
     # sigma_kernel: same seed, same config, repeated. On a GPU with non-deterministic kernels these
     # still differ; sigma (across seeds) includes this noise, sigma_kernel isolates it.
     repeat = f"{args.baseline}_repeat"
-    same_seed = [float(r[args.metric]) for r in by_name[args.baseline] + by_name.get(repeat, [])
+    same_seed = [float(r[args.metric]) for r in by_name[args.baseline] + repeats
                  if r["train.lr"] == base_lr and r["train.seed"] == "0"
                  and r.get(args.metric) not in (None, "") and r.get("diverged") != "True"]
-    if repeat in by_name and len(same_seed) >= 2:
+    if repeats and len(same_seed) >= 2:
         sigma_k = statistics.stdev(same_seed)
         print(f"sigma_kernel (seed 0 repeated, n={len(same_seed)}) = {sigma_k:.4f} ({sigma_k / sigma:.0%} of sigma)")
     print()
