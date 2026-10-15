@@ -105,7 +105,7 @@ def main() -> None:
             for mode in args.compile_mode:
                 try:
                     r = bench(run, micro, args.steps, args.warmup, "cuda", None if mode == "eager" else mode)
-                except torch.OutOfMemoryError:
+                except torch.cuda.OutOfMemoryError:
                     print(f"  {run.name} micro={micro} {mode}: OOM")
                     torch.cuda.empty_cache()
                     continue
