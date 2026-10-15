@@ -136,7 +136,7 @@ def train(run: RunConfig) -> dict | None:
     start_step, train_seconds = 0, 0.0
     ckpt_path = out / "ckpt_latest.pt"
     if ckpt_path.exists():
-        ck = load_checkpoint(ckpt_path, map_location=device)
+        ck = load_checkpoint(ckpt_path)
         if ck["run_id"] != run_id:
             raise ValueError(f"checkpoint belongs to {ck['run_id']}, not {run_id}")
         model.load_state_dict(ck["model"])
@@ -146,7 +146,7 @@ def train(run: RunConfig) -> dict | None:
         truncate_metrics(out / "metrics.jsonl", start_step)
         print(f"resumed {run_id} at step {start_step}")
     elif tc.init_from:
-        ck = load_checkpoint(tc.init_from, map_location=device)
+        ck = load_checkpoint(tc.init_from)
         parent = RunConfig.from_dict(ck["run_config"])
         for s in range(ck["step"]):  # the branch must share the parent's schedule up to here
             if not math.isclose(lr_multiplier(s, parent.train), lr_multiplier(s, tc)):

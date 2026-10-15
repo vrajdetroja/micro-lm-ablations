@@ -9,9 +9,9 @@ The subject is a language model; the deliverable is the experimental method. Eve
 is reported against a noise floor σ (the standard deviation over baseline seeds), and any
 effect smaller than 2σ is reported as **inconclusive**, not as a finding.
 
-> **Status:** infrastructure complete and tested (100 tests); FineWeb-Edu frozen for four
-> vocabularies; runs end-to-end on CPU. No results yet. Next: measure real MFU and check
-> the CUDA path.
+> **Status:** infrastructure complete and tested (101 tests); FineWeb-Edu frozen for four
+> vocabularies; CUDA path validated (measured **55% MFU** on an RTX 4090). No ablation
+> results yet. Next: the noise floor σ.
 
 ---
 
@@ -61,10 +61,24 @@ effect smaller than 2σ is reported as **inconclusive**, not as a finding.
 ```
 
 At this scale the textbook `6N` estimate undercounts by **34%**: the unembedding and
-attention terms are not small when `d` is only 384. On an RTX 4090 (165 TFLOP/s dense bf16),
-a run takes **~8.3 min at 25% MFU** (5.9 min at 35%), plus about a minute of compilation and
-evaluation. The real MFU is measured with
-`experiments/launch/bench_throughput.py`.
+attention terms are not small when `d` is only 384.
+
+Measured on an RTX 4090 (165 TFLOP/s dense bf16, `torch.compile`, NVIDIA PyTorch 2.10,
+`results/throughput.json`):
+
+| Config | Tokens/s | MFU | Minutes/run |
+|---|---|---|---|
+| baseline (6 × 384) | 935k | 55% | 3.8 |
+| depth: 2 × 640 | 1,046k | 62% | 3.4 |
+| depth: 24 × 192 | 704k | 43% | 5.0 |
+| vocab 16,384 | 994k | 54% | 3.8 |
+| Muon optimizer | 833k | 49% | 4.2 |
+| ladder d=128 (1.2M params) | 1,888k | 21% | 0.2 |
+
+Micro-batch size (32/64/128) changes throughput by under 1%; `max-autotune` compilation
+gains ~5% but costs ~50 s more compile per run, a wash at these run lengths. Deep-narrow
+models are slower per FLOP, as expected, which the depth-vs-width ablation reports as its
+equal-wallclock comparison.
 
 ## Conventions
 
@@ -95,7 +109,7 @@ configs/       baseline.yaml, smoke.yaml, generate.py → ablations/ (21), ladde
 experiments/   preregistrations/, launch/ (sweep, throughput bench), protocol/ (one script
                per stage), prepare_data.sh
 analysis/      collect.py (runs → results/all_runs.csv), compare.py (2σ verdicts)
-tests/         100 tests
+tests/         101 tests
 ```
 
 ### Things the tests pin down
@@ -106,8 +120,13 @@ tests/         100 tests
 - Analytic parameter counts equal the instantiated module's for every variant, and gated
   FFNs are within 0.5% of the GELU baseline. An unmatched SwiGLU would fail the test.
 - The SDPA (Flash) attention path equals a naive softmax reference for every positional variant.
-- A run interrupted at step 6 and resumed is **bitwise identical** to an uninterrupted run,
-  for AdamW, Lion, and Muon.
+- On CPU, a run interrupted at step 6 and resumed is **bitwise identical** to an
+  uninterrupted run, for AdamW, Lion, and Muon. Resuming also works on an accelerator.
+- On the 4090, training is **not** deterministic: two fresh runs with the same seed and
+  config are bitwise equal for 2 steps, differ by ~5e-6 at step 3 (non-deterministic kernel
+  reductions), and by ~0.007 nats on average over steps 81–100 as warmup amplifies the
+  difference. The noise floor σ therefore includes kernel noise, and the noise-floor runs
+  measure it separately.
 - Flipping one bit of a frozen `.bin` makes every run refuse to start.
 
 ## Workflow

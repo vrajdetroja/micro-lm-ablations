@@ -255,3 +255,14 @@ def test_bpb_matches_definition(synthetic_data, tmp_path):
     toks = data.split("val_iid")[1 : r["n_tokens"] + 1]
     assert r["n_bytes"] == len(data.tokenizer.decode_bytes(int(t) for t in toks))
     assert r["bpb"] == pytest.approx(r["loss"] * r["n_tokens"] / r["n_bytes"] / math.log(2))
+
+
+@pytest.mark.skipif(not torch.backends.mps.is_available(), reason="needs a non-CPU device")
+def test_resume_on_accelerator(synthetic_data, tmp_path):
+    # Regression: loading the checkpoint onto the device moved the RNG states there, and
+    # torch.set_rng_state rejects non-CPU tensors, so every GPU resume crashed.
+    kw = dict(device="mps", dtype="bf16")
+    assert train(tiny_run(synthetic_data, tmp_path, stop_at_step=6, **kw)) is None
+    resumed = train(tiny_run(synthetic_data, tmp_path, **kw))
+    assert resumed["steps"] == 12
+    assert len(losses(tmp_path / resumed["run_id"])) == 12

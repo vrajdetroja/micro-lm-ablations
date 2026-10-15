@@ -57,5 +57,8 @@ def save_model_only(path: str | Path, *, model, step: int, **extra) -> None:
 
 
 def load_checkpoint(path: str | Path, map_location="cpu") -> dict:
+    """Load onto the CPU unless told otherwise. Resuming must load to the CPU: the saved RNG
+    states have to stay CPU ByteTensors (torch.set_rng_state rejects GPU tensors), while
+    load_state_dict moves model weights and optimizer state to the parameters' device anyway."""
     # Our own files; they hold numpy RNG state, which weights_only loading rejects.
     return torch.load(path, map_location=map_location, weights_only=False)
