@@ -52,4 +52,15 @@ are descriptive; a reversal relative to equal steps is the finding to look for.
 - 24 × 192 better than the baseline by ≥ 2σ at equal steps: deeper is better at this scale.
 - No reversal between the equal-steps and equal-wallclock rankings for 24 × 192.
 
+## Amendment — 2026-10-16, after Tier A started, before any 006 run
+
+Tier A runs on a different RTX 4090 from the noise-floor runs, a 48 GB card. The same throughput
+benchmark (baseline, micro-batch 64, default compile) gives 970k tokens/s on it against
+926k on the 24 GB card used for the noise floor: 4.7% faster. All 006 variants train on the Tier A card, but
+the baseline's five runs trained on the 24 GB card. For the **equal-wallclock** comparison,
+the baseline's measured training seconds are therefore scaled by 926/970 = 0.955 to this
+card. Equal-steps and equal-FLOPs comparisons are unaffected: the kernels are the same, and
+their run-to-run noise is already part of σ. If Tier A runs on more than one card, each
+card's own benchmark sets its scale factor the same way.
+
 ## Outcome *(filled in after)*
