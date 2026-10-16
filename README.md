@@ -162,6 +162,7 @@ bash experiments/prepare_data.sh
 bash experiments/protocol/00_validation.sh
 bash experiments/protocol/01_noise_floor.sh
 bash experiments/protocol/02_tier_a.sh
+bash experiments/protocol/03_tier_b_and_scaling.sh
 python analysis/collect.py && python analysis/compare.py
 ```
 

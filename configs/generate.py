@@ -132,6 +132,10 @@ def main() -> None:
     for d in (128, 192, 256, 512):
         write("ladder", f"ladder_d{d}", {"d_model": d, "n_head": d // 64}, ladder_shape(d),
               why="Width ladder at 6 layers: 1620 steps for every size, ~20 tokens per non-embedding param.")
+    # C2: the clearest Tier A effect (RoPE, -0.084 nats at d=384) repeated at every ladder width.
+    for d in (128, 192, 256, 512):
+        write("ladder", f"ladder_d{d}_rope", {"d_model": d, "n_head": d // 64, "pos_type": "rope"}, ladder_shape(d),
+              why="Cross-scale check (C2): RoPE at this ladder width, otherwise identical to ladder_d" + str(d) + ".")
 
     # -- reserve: designed, not run ---------------------------------------------------------
     write("reserve", "sched_constant", train={"schedule": "constant"})
