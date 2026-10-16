@@ -9,7 +9,11 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from microlm.model.config import HASH_OPTIONAL  # noqa: E402
 
 SKIP = {"val_iid_position_loss", "induction_prefix_matching", "config", "hardware", "params", "flops_per_token"}
 
@@ -29,7 +33,8 @@ def flatten(d: dict, prefix: str = "") -> dict:
 
 def row(summary: dict) -> dict:
     r = {k: v for k, v in summary.items() if k not in SKIP}
-    r.update(flatten(summary["config"]["model"], "model."))
+    # Runs from before a field existed simply lack it; they ran with its default.
+    r.update(flatten({**HASH_OPTIONAL, **summary["config"]["model"]}, "model."))
     r.update(flatten(summary["config"]["train"], "train."))
     r.update(flatten(summary["params"], "params."))
     r.update(flatten(summary["flops_per_token"], "flops_per_token."))

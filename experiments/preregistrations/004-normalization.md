@@ -100,4 +100,43 @@ come from the protocol runs where they exist.
 
 The original demo (GPT-2-init post-LN at 4e-3 and 8e-3) was never run.
 
-## Outcome *(filled in after)*
+## Outcome *(filled in 2026-10-16)*
+
+Verdicts under the rule as written / the post-hoc pool (see 002's Outcome).
+
+| Variant | Best LR | Mean | Δ | Verdict | Prediction |
+|---|---|---|---|---|---|
+| RMSNorm | 4e-3 | 3.5888 | −0.002 | inconclusive / inconclusive | \|Δ\| < 2σ: **held** |
+| No final norm | 2e-3 | 3.6284 | +0.038 | threshold-sensitive / **worse** | ≥ +0.010: **held** |
+| Post-LN, GPT-2 init | 2e-3 | 7.3380 | +3.747 | worse / worse (unstable) | ±0.015: **falsified** (collapsed) |
+| Pre-LN, standard init (amendment) | 8e-3 | 3.6444 | +0.054 | threshold-sensitive / **worse** | +0.01 to +0.10: **held** |
+| Post-LN, standard init (amendment) | 1e-3 | 3.8563 | +0.265 | worse / **worse** | trains, best LR ≤ 1e-3: **held** |
+
+- **Post-LN vs pre-LN at matched (standard) init:** +0.212. "Within ±0.03": **missed** by a
+  wide margin. Even when post-LN trains, it is far behind.
+- **Interaction:** switching to standard init moves post-LN by −3.48 nats (7.338 → 3.856) and
+  pre-LN by +0.054. "≥ 3 nats vs ≤ 0.10": **held.** Post-LN's viability depends on
+  initialization; pre-LN's does not.
+- **RMSNorm throughput:** 943k tokens/s, about 2% *slower* than LayerNorm on the same card.
+  The predicted 0–3% speedup: **missed.** This repository's RMSNorm is a plain PyTorch
+  function computed in fp32, while LayerNorm uses a fused kernel.
+
+**Divergence demonstration** (amended design; post-LN and pre-LN with standard init; seed 0;
+val_iid nats; "collapsed" = stuck at the unigram loss, 7.338):
+
+| | warmup 0 | 50 | 200 (protocol run) | 800 |
+|---|---|---|---|---|
+| Post-LN, LR 1e-3 | collapsed | collapsed | 3.857 | 3.915 |
+| Post-LN, LR 2e-3 | collapsed | collapsed | collapsed | **3.711** |
+| Pre-LN, LR 1e-3 | 4.304 | | | |
+| Pre-LN, LR 2e-3 | 4.199 | | 3.771 | |
+
+- **Post-LN fails at warmup 0 at both LRs: held.**
+- **Trainable at warmup ≥ 50 for 1e-3: missed** (it needs 200).
+- **Trainable at ≥ 200 for 2e-3: missed** (200 collapses; 800 trains).
+- **Pre-LN at warmup 0 within 0.05 of warmup 200: missed.** It trains at every setting but
+  is 0.43 nats worse without warmup. Pre-LN never collapses, but it still benefits from warmup.
+
+With 800 warmup steps, post-LN at LR 2e-3 (3.711) beats its own best protocol run (3.856).
+The shared protocol's fixed 200-step warmup understates post-LN.
+

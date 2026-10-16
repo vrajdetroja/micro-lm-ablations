@@ -85,6 +85,9 @@ def main() -> None:
     ap.add_argument("--metric", default="val_iid_loss")
     ap.add_argument("--baseline", default="baseline")
     ap.add_argument("--best-lr", metavar="NAME", help="print only NAME's best LR (for the protocol scripts) and exit")
+    ap.add_argument("--exclude-unstable", action="store_true",
+                    help="POST HOC, not preregistered: leave variants with any run > 0.5 nats worse than the "
+                         "baseline (unstable under shared rule 5) out of sigma_pooled")
     args = ap.parse_args()
 
     rows = load(args.csv)
@@ -119,14 +122,19 @@ def main() -> None:
         print(f"sigma_kernel (seed 0 repeated, n={len(same_seed)}) = {sigma_k:.4f} ({sigma_k / sigma:.0%} of sigma)")
     # Pooled within-variant sigma: each variant's seeds at its best LR, pooled by degrees of freedom.
     num = df = 0
-    for rs in by_name.values():
+    excluded = []
+    for name, rs in by_name.items():
         _, vals = best_lr(rs, args.metric)
+        if args.exclude_unstable and any(v > base_mean + 0.5 for v in vals):
+            excluded.append(name)
+            continue
         if len(vals) >= 2:
             num += (len(vals) - 1) * statistics.variance(vals)
             df += len(vals) - 1
     sigma_p = (num / df) ** 0.5 if df > len(base) - 1 else None
     if sigma_p is not None:
-        print(f"sigma_pooled = {sigma_p:.4f} ({df} df), 2 sigma_pooled = {2 * sigma_p:.4f}")
+        note = f"  [POST HOC: excluding unstable {', '.join(sorted(excluded))}]" if args.exclude_unstable else ""
+        print(f"sigma_pooled = {sigma_p:.4f} ({df} df), 2 sigma_pooled = {2 * sigma_p:.4f}{note}")
     thresholds = [2 * sigma] + ([2 * sigma_p] if sigma_p is not None else [])
     print()
     print(f"{'variant':<22}{'best lr':>14}{'n':>4}{'mean':>10}{'delta':>10}{'fresh':>10}{'range':>18}  verdict")

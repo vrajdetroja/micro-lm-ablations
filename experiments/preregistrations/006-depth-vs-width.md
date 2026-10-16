@@ -63,4 +63,33 @@ card. Equal-steps and equal-FLOPs comparisons are unaffected: the kernels are th
 their run-to-run noise is already part of σ. If Tier A runs on more than one card, each
 card's own benchmark sets its scale factor the same way.
 
-## Outcome *(filled in after)*
+## Outcome *(filled in 2026-10-16)*
+
+Δ against the 6 × 384 baseline. Equal-FLOPs and equal-wallclock deltas are interpolated from
+the periodic val curves (first 1M val_iid tokens), with both runs read at the same FLOPs or wallclock
+(`analysis/tier_a_secondary.py`).
+
+| Shape | Best LR | Mean | Δ steps | Δ FLOPs | Δ wallclock | Verdict (written / post hoc) | Predicted Δ steps |
+|---|---|---|---|---|---|---|---|
+| 2 × 640 | 2e-3 | 3.6494 | +0.059 | +0.062 | +0.041 | threshold-sensitive / **worse** | ≥ +0.04: **held** |
+| **6 × 384** | 4e-3 | 3.5908 | — | — | — | — | — |
+| 12 × 256 | 8e-3 | 3.6999 | +0.109 | +0.088 | +0.124 | threshold-sensitive / **worse** | \|Δ\| < 0.01: **missed** |
+| 24 × 192 | 8e-3 | 3.7563 | +0.165 | +0.178 | +0.278 | worse / **worse** | −0.01 to +0.02: **missed** |
+
+- **The optimum is not broad here.** 6 layers beats 2, 12, and 24 at equal steps, FLOPs, and
+  wallclock, with no rank reversals. Kaplan et al.'s broad optimum does not appear at 10M,
+  with this fixed head size.
+- **Caveat:** with d_head fixed at 64, depth is confounded with head count (2 × 640 has 10
+  heads; 6 × 384 has 6; 12 × 256 has 4; 24 × 192 has 3). The 12-layer model also has 11%
+  fewer parameters.
+- **Equal wallclock, 24 × 192 ≥ 0.02 worse: held** (+0.278).
+- **Equal FLOPs, 12 × 256 ranks at least as well: held in degree.** Its gap narrows from
+  +0.109 to +0.088, but its rank is unchanged.
+- **Falsifier "no reversal for 24 × 192": triggered.** The predicted reversal needed it to be
+  close to the baseline per step, which it was not.
+- **Induction probe (not a verdict metric).** Copy accuracy on repeated random tokens:
+  2 × 640 0.049 (lowest: **held**), 6 × 384 0.097, 12 × 256 0.136, 24 × 192 0.123.
+  In-context gain: 4.08, 4.37, 5.35, 5.32. **Deeper models copy better while modelling
+  language worse.** At fixed parameters, depth buys in-context copying at the cost of
+  next-token loss.
+

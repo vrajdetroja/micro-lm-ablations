@@ -9,9 +9,25 @@ The subject is a language model; the deliverable is the experimental method. Eve
 is reported against a noise floor σ (the standard deviation over baseline seeds), and any
 effect smaller than 2σ is reported as **inconclusive**, not as a finding.
 
-> **Status:** noise floor measured. Baseline best LR 4e-3; **σ = 0.0036 nats** (5 seeds),
-> so effects under **2σ = 0.0072** are inconclusive. GPU kernel noise alone is 78% of σ.
-> 106 tests. Next: Tier A, after preregistrations 002–006.
+> **Status:** Tier A is done: 16 preregistered variants plus 3 follow-ups, ~130 runs.
+> Next: Tier B (vocab size, Muon, Lion) and the scaling ladder, after preregistrations
+> 007–009. Full verdicts: the Outcome sections of `experiments/preregistrations/`.
+
+## Findings so far (10.6M params, 212M tokens, 3 seeds per variant, Δ in nats vs. baseline 3.5908)
+
+| | Result |
+|---|---|
+| Noise floor | σ_seed = 0.0036 (5 seeds); **78% of it is GPU kernel non-determinism** (same-seed repeats) |
+| Clearly better | RoPE −0.084 · ALiBi −0.059 · WSD schedule −0.036 |
+| Clearly worse | NoPE +0.129 · fixed sinusoid +0.047 · no final norm +0.038 · any depth ≠ 6 layers (+0.06 to +0.17) |
+| Small, threshold-sensitive | SwiGLU / GEGLU / ReLU² −0.013 to −0.022 |
+| Null | RMSNorm vs LayerNorm · linear vs cosine decay |
+| Post-LN | collapses to the unigram solution under GPT-2 init at every LR; trains only with standard init **and** long warmup, still +0.21 behind pre-LN |
+| Length extrapolation | only ALiBi (loss at 4096 ≤ loss at 512); NoPE degrades most |
+| Out of distribution (code) | RoPE and ALiBi are *worse* than learned positions despite winning in distribution |
+| Depth | deeper models copy better (induction probe) but model language worse |
+| Method | variant-dependent noise: unstable configs are 3–10× noisier than the baseline, so a baseline-only σ is optimistic |
+| Predictions | 21 of 38 held; effect sizes at 10M consistently larger than predicted |
 
 ---
 
@@ -109,7 +125,7 @@ configs/       baseline.yaml, smoke.yaml, generate.py → ablations/ (21), ladde
 experiments/   preregistrations/, launch/ (sweep, throughput bench), protocol/ (one script
                per stage), prepare_data.sh
 analysis/      collect.py (runs → results/all_runs.csv), compare.py (2σ verdicts)
-tests/         106 tests
+tests/         113 tests
 ```
 
 ### Things the tests pin down

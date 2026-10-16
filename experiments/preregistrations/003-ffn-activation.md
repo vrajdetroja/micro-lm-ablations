@@ -35,4 +35,24 @@ exact parameter matching.
   a null result worth reporting, given how routinely SwiGLU is adopted.
 - ReLU² better than GELU by ≥ 2σ: squared ReLU helps even at this scale.
 
-## Outcome *(filled in after)*
+## Outcome *(filled in 2026-10-16)*
+
+All best at LR 4e-3. Verdicts under the rule as written / the post-hoc pool (see 002's Outcome).
+
+| Variant | Mean | Δ | Verdict (written / post hoc) | Predicted Δ |
+|---|---|---|---|---|
+| SwiGLU | 3.5768 | −0.014 | threshold-sensitive / threshold-sensitive | −0.008 to −0.025 |
+| GEGLU | 3.5689 | −0.022 | threshold-sensitive / threshold-sensitive | within 2σ of SwiGLU |
+| ReLU² | 3.5774 | −0.013 | threshold-sensitive / threshold-sensitive | ±0.008 |
+
+- **SwiGLU's range: held.** Its gain clears 2σ_seed (0.0072) but not 2σ_pooled (0.025), so
+  it is threshold-sensitive under both pools.
+- **GEGLU vs SwiGLU:** they differ by 0.008, just over 2σ_seed and well inside 2σ_pooled.
+  **Held under the pooled σ, borderline under σ_seed.**
+- **ReLU² within ±0.008: missed.** It is as good as the gated variants.
+- **Throughput within 5%: held, barely.** SwiGLU 922k, GEGLU 921k, ReLU² 938k tokens/s,
+  against the baseline's ~965k on the same card (921k measured on the 24 GB card, ×1.047).
+- **Falsifier "SwiGLU within 2σ of GELU":** not triggered under σ_seed, triggered under the
+  pooled σ. The honest summary: at 10M, every alternative FFN beats GELU by 0.013–0.022 nats,
+  an effect real against seed noise but small against variant-to-variant noise.
+

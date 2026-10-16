@@ -35,4 +35,23 @@ and that is a legitimate outcome, not a failure of the experiment.
 - The baseline (cosine to 10%) beats both decay-to-zero schedules by ≥ 2σ.
 - WSD differs from cosine to 0 by ≥ 2σ in either direction.
 
-## Outcome *(filled in after)*
+## Outcome *(filled in 2026-10-16)*
+
+All best at LR 4e-3. Verdicts under the rule as written / the post-hoc pool (see 002's Outcome).
+
+| Schedule | Mean | Δ against cosine to 10% | Verdict | Predicted Δ |
+|---|---|---|---|---|
+| Cosine to 0 | 3.6022 | **+0.011** | threshold-sensitive / threshold-sensitive | −0.003 to −0.012 |
+| Linear to 0 | 3.5870 | −0.004 | inconclusive / inconclusive | −0.005 to −0.015 |
+| **WSD** (20% linear cooldown) | 3.5552 | **−0.036** | threshold-sensitive / **better** | within 2σ of cosine to 0 |
+
+- **Cosine to 0: missed, wrong direction.** It is slightly *worse* than stopping at 10%.
+- **Linear to 0:** **missed** the range, inconclusive. "≤ cosine to 0" **held**.
+- **WSD within 2σ of cosine to 0: falsified.** WSD is the best schedule tested, 0.047 better
+  than cosine to 0. Its flat peak followed by a short, steep cooldown suits this short
+  training run better than any smooth decay.
+- **Best LRs ≥ 4e-3: held** (all at 4e-3).
+- **Falsifiers:** "the baseline beats both decay-to-zero schedules by ≥ 2σ" was not triggered
+  (it beats cosine to 0 but not linear). "WSD differs from cosine to 0 by ≥ 2σ" **was
+  triggered.**
+
