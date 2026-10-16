@@ -11,8 +11,9 @@ effect smaller than 2σ is reported as **inconclusive**, not as a finding.
 
 > **Status:** all experiments are done (196 GPU runs). Every preregistration (001–009)
 > has its Outcome filled in, and every number regenerates from `results/all_runs.csv`
-> (`analysis/compare.py`, `tier_a_secondary.py`, `scaling.py`). Next: the write-up
-> (`REPORT.md`, figures).
+> (`analysis/compare.py`, `tier_a_secondary.py`, `scaling.py`). **Read the report:
+> [`REPORT.md`](REPORT.md)** (draft), with 15 figures in `results/figures/`
+> (`python analysis/figures.py`).
 
 ## Findings so far (10.6M params, 212M tokens, 3 seeds per variant, Δ in nats vs. baseline 3.5908)
 
@@ -27,6 +28,7 @@ effect smaller than 2σ is reported as **inconclusive**, not as a finding.
 | Length extrapolation | only ALiBi (loss at 4096 ≤ loss at 512); NoPE degrades most |
 | Out of distribution (code) | RoPE and ALiBi are *worse* than learned positions despite winning in distribution |
 | Depth | deeper models copy better (induction probe) but model language worse |
+| Induction heads (exploratory) | form between steps 400 and 800 (52M–105M tokens) at every depth; depth changes how strong they get, not when |
 | Method | variant-dependent noise: unstable configs are 3–10× noisier than the baseline, so a baseline-only σ is optimistic |
 | Vocabulary (bits per byte, equal FLOPs) | 2k 1.370 · 4k 1.346 · 8k 1.322 · **16k 1.305**: bigger is better up to 16k even at 4 layers; per-token loss ranks them exactly backwards |
 | Optimizer | **Muon −0.115** (−0.070 at equal wallclock) · Lion +0.089 |

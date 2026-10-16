@@ -107,6 +107,7 @@ def main() -> None:
     base_steps = statistics.mean(s["val_iid_loss"] for s in base)
     print(f"  baseline: {bF:.3g} FLOPs, {bW / 60:.2f} min training (scaled to the Tier A card)")
     print(f"  {'variant':<14}{'d steps':>10}{'d FLOPs':>10}{'d wallclock':>13}   (variant minus baseline, nats)")
+    saved = {}
     for name in ("dw_L2_d640", "dw_L12_d256", "dw_L24_d192"):
         _, ss = best(rows, name)
         out = {"steps": statistics.mean(s["val_iid_loss"] for s in ss) - base_steps}
@@ -122,6 +123,8 @@ def main() -> None:
                     deltas.append(v - statistics.mean(bvals))
             out[x] = statistics.mean(deltas) if deltas else float("nan")
         print(f"  {name:<14}{out['steps']:>+10.4f}{out['flops']:>+10.4f}{out['seconds']:>+13.4f}")
+        saved[name] = out
+    Path("results/depth_matched.json").write_text(json.dumps(saved, indent=2))
 
 if __name__ == "__main__":
     main()
