@@ -99,6 +99,15 @@ def main() -> None:
         write("ablations", f"ffn_{ffn}", {"ffn_type": ffn})
     write("ablations", "norm_rmsnorm", {"norm_type": "rmsnorm"})
     write("ablations", "norm_post", {"norm_position": "post"})
+    # Follow-ups (amendments to 002 and 004, 2026-10-16). The first runs showed that the raw
+    # sinusoid table swamps GPT-2-scale token embeddings, and that post-LN under GPT-2 init
+    # collapses to the unigram solution.
+    write("ablations", "pos_sinusoidal_scaled", {"pos_type": "sinusoidal", "sinusoidal_rms": 0.02},
+          why="Fixed sin/cos table rescaled to RMS 0.02, the learned table's initial magnitude.")
+    write("ablations", "norm_post_torchinit", {"norm_position": "post", "init_scheme": "torch"},
+          why="Post-LN with PyTorch's standard TransformerEncoderLayer initialization.")
+    write("ablations", "init_torch", {"init_scheme": "torch"},
+          why="Pre-LN with PyTorch's standard initialization: the init control for norm_post_torchinit.")
     write("ablations", "norm_no_final", {"final_norm": False})
     write("ablations", "sched_cosine0", train={"min_lr_ratio": 0.0})
     write("ablations", "sched_linear", train={"schedule": "linear", "min_lr_ratio": 0.0})

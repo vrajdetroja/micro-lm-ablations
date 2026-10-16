@@ -156,7 +156,7 @@ class RunConfig:
 
     def semantic(self, data_identity: str | None = None) -> dict:
         train = {k: v for k, v in asdict(self.train).items() if k not in OPERATIONAL_FIELDS}
-        out = {"model": self.model.to_dict(), "train": train}
+        out = {"model": self.model.hash_dict(), "train": train}
         if data_identity is not None:
             out["data"] = data_identity
         return out

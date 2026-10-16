@@ -8,6 +8,12 @@ POS_TYPES = ("learned", "sinusoidal", "rope", "alibi", "nope")
 FFN_TYPES = ("gelu", "swiglu", "geglu", "relu2")
 GATED_FFNS = ("swiglu", "geglu")
 NORM_TYPES = ("layernorm", "rmsnorm")
+INIT_SCHEMES = ("gpt2", "torch")
+
+# Fields added after runs already existed. At their default value they are left out of the
+# run hash, so adding a field never changes the ID of an earlier run (which would make the
+# protocol scripts re-run finished work). Asserted against real run IDs in tests/test_train.py.
+HASH_OPTIONAL = {"init_scheme": "gpt2", "sinusoidal_rms": None}
 
 
 @dataclass
@@ -21,6 +27,10 @@ class ModelConfig:
 
     pos_type: str = "learned"
     rope_base: float = 10000.0
+    # None: the raw sin/cos table (RMS 1/sqrt(2) ~ 0.71, far above token embeddings at
+    # init_std 0.02). A number rescales the table to that RMS, e.g. init_std, so a fixed table
+    # starts at the same magnitude as a learned one.
+    sinusoidal_rms: float | None = None
 
     ffn_type: str = "gelu"
     # FFN parameter count as a multiple of d_model, expressed for a *non-gated* FFN: the
@@ -38,8 +48,13 @@ class ModelConfig:
 
     bias: bool = False
     tie_embeddings: bool = True
+    # gpt2: N(0, init_std) for every matrix, residual projections scaled by 1/sqrt(2 * n_layer).
+    # torch: PyTorch's nn.TransformerEncoderLayer defaults (Xavier-uniform QKV, PyTorch's
+    # default Linear init elsewhere); embeddings stay N(0, init_std). Post-LN collapses to
+    # the unigram solution under gpt2 init and trains under torch init.
+    init_scheme: str = "gpt2"
     init_std: float = 0.02
-    scale_residual_init: bool = True  # residual output projections get std / sqrt(2 * n_layer)
+    scale_residual_init: bool = True  # gpt2 scheme only: residual output projections get std / sqrt(2 * n_layer)
     pad_vocab_to: int = 64  # embedding rows are padded for kernel efficiency; padded logits are dropped
 
     def __post_init__(self):
@@ -52,6 +67,8 @@ class ModelConfig:
             raise ValueError(f"ffn_type must be one of {FFN_TYPES}")
         if self.norm_type not in NORM_TYPES:
             raise ValueError(f"norm_type must be one of {NORM_TYPES}")
+        if self.init_scheme not in INIT_SCHEMES:
+            raise ValueError(f"init_scheme must be one of {INIT_SCHEMES}")
         if self.norm_position not in ("pre", "post"):
             raise ValueError("norm_position must be 'pre' or 'post'")
         if self.d_model % self.n_head:
@@ -88,6 +105,14 @@ class ModelConfig:
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+    def hash_dict(self) -> dict:
+        """to_dict() without late-added fields that sit at their defaults (see HASH_OPTIONAL)."""
+        d = self.to_dict()
+        for k, default in HASH_OPTIONAL.items():
+            if d.get(k) == default:
+                d.pop(k)
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> "ModelConfig":

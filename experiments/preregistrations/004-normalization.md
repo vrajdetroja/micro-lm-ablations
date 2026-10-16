@@ -49,4 +49,55 @@ non-finite loss or a ≥ 0.5-nat penalty; "trainable" is within 0.05 of the warm
 - No-final-norm within 2σ of the baseline: the final norm is unnecessary here.
 - RMSNorm differs from LayerNorm by ≥ 2σ in either direction.
 
+## Amendment — 2026-10-16, after the first post-LN runs, before any run of the new design
+
+**What happened.** `norm_post` (post-LN, GPT-2 initialization: N(0, 0.02), residual
+projections scaled by 1/√(2L)) ended at 7.3380 nats in every run: seed 0 at LR 1e-3, 2e-3,
+4e-3 and 8e-3, and seeds 1–2 at 2e-3. The loss fell to ~7.35 by step 50 and stayed there.
+Attention entropy stayed at ~5.25 nats in every layer, which is uniform attention over the
+context, and the model learned token frequencies only. The prediction "post-LN within
+±0.015 of pre-LN" is **falsified** for this configuration. Post-LN under GPT-2
+initialization collapses at every LR tried.
+
+**Diagnosis** (6 × 128 model on TinyStories, 200 steps):
+- This repository's post-LN block gives **exactly** the same losses as PyTorch's
+  `nn.TransformerEncoderLayer(norm_first=False)` under the same initialization (6.137 at
+  LR 1e-3, 5.913 at 3e-4). The implementation is not at fault.
+- Under PyTorch's default initialization (Xavier-uniform QKV, default Linear init
+  elsewhere), the reference layer trains: 4.575 at LR 1e-3 with 100 warmup steps.
+- This repository's post-LN with that initialization (`init_scheme: torch`) also trains:
+  4.475 at LR 1e-3 with warmup 100, against pre-LN's 4.406.
+- It still collapses with GPT-2 init at the same settings (6.083), and nearly collapses
+  with standard init when warmup is short (20 steps: 5.94 at 1e-3, 6.08 at 4e-3).
+- So post-LN trains here only with **both** standard initialization **and** a gentle LR or
+  warmup.
+- Standard init is not simply better: pre-LN under it is worse than under GPT-2 init on the
+  tiny model (5.19 against 4.41 at 1e-3).
+
+**New design: a 2 × 2 of norm placement {pre, post} × initialization {gpt2, torch}.**
+Two cells already exist: the baseline (pre, gpt2) and `norm_post` (post, gpt2: collapsed).
+- `init_torch` (pre, torch): the shared protocol.
+- `norm_post_torchinit` (post, torch): seed 0 at LR {5e-4, 1e-3, 2e-3}, with the usual
+  edge extension, then 2 seeds at its best. That is centered at 1e-3 instead of the shared
+  4e-3, which is justified before running by post-LN's known LR sensitivity (Xiong et al.,
+  2020) and by the diagnostics above.
+
+**Predictions:**
+- `init_torch` is worse than the baseline: Δ in +0.01 to +0.10 (clears 2σ).
+- `norm_post_torchinit` trains (val < 4.0, no collapse), with best LR ≤ 1e-3. Δ against
+  `init_torch` is within ±0.03. Δ against the baseline clears 2σ upward.
+- **Interaction:** switching init changes post-LN by ≥ 3 nats (7.338 → < 4.0) but pre-LN by
+  ≤ 0.10. Post-LN's viability depends on initialization; pre-LN's does not.
+
+**Divergence demonstration, revised** to post-LN's trainable range (`runs/warmup_demo/`,
+8 runs). Post-LN with torch init at warmup ∈ {0, 50, 800} × LR ∈ {1e-3, 2e-3}, seed 0.
+Pre-LN with torch init at warmup 0 × the same LRs as the control. Warmup-200 references
+come from the protocol runs where they exist.
+- Prediction: post-LN at warmup 0 fails (collapse, or ≥ 0.5 nats worse than its warmup-200
+  run) at both LRs.
+- Post-LN is trainable at warmup ≥ 50 for 1e-3 and only at ≥ 200 for 2e-3.
+- Pre-LN at warmup 0 trains, within 0.05 of its warmup-200 run where that exists.
+
+The original demo (GPT-2-init post-LN at 4e-3 and 8e-3) was never run.
+
 ## Outcome *(filled in after)*

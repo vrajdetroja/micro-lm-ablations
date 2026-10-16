@@ -17,14 +17,28 @@ A=configs/ablations
 
 # 002 positional encoding
 $P --config $A/pos_rope.yaml $A/pos_alibi.yaml $A/pos_nope.yaml $A/pos_sinusoidal.yaml
+# 002 amendment: the fixed table rescaled to the learned table's starting magnitude
+$P --config $A/pos_sinusoidal_scaled.yaml
 # 003 FFN activation
 $P --config $A/ffn_swiglu.yaml $A/ffn_geglu.yaml $A/ffn_relu2.yaml
 # 004 normalization
 $P --config $A/norm_post.yaml $A/norm_no_final.yaml $A/norm_rmsnorm.yaml
-# 004 divergence demonstration: DEFERRED (2026-10-16). Post-LN collapsed to the unigram
-# loss (7.338) at every LR the protocol tried (1e-3 to 8e-3), so the preregistered demo grid
-# (4e-3, 8e-3) would add nothing. A corrected design goes in a dated amendment to 004 and a
-# follow-up run.
+# 004 amendment: norm placement x initialization. GPT-2-init post-LN collapsed at every LR;
+# post-LN is swept lower (center 1e-3) under PyTorch's standard init, with its pre-LN control.
+$P --config $A/init_torch.yaml
+python experiments/launch/protocol.py --center 0.001 --config $A/norm_post_torchinit.yaml
+# 004 divergence demonstration, revised to post-LN's trainable range (runs/warmup_demo).
+# The warmup-200 references are the protocol's own seed-0 runs.
+for lr in 1e-3 2e-3; do
+    for w in 0 50 800; do
+        python -m microlm.train.trainer --config $A/norm_post_torchinit.yaml \
+            --set train.lr=$lr train.warmup_steps=$w train.seed=0 train.out_dir=runs/warmup_demo \
+            || echo "RUN FAILED: post-LN torch-init lr=$lr warmup=$w"
+    done
+    python -m microlm.train.trainer --config $A/init_torch.yaml \
+        --set train.lr=$lr train.warmup_steps=0 train.seed=0 train.out_dir=runs/warmup_demo \
+        || echo "RUN FAILED: pre-LN torch-init lr=$lr warmup=0"
+done
 # 005 learning-rate schedule
 $P --config $A/sched_linear.yaml $A/sched_cosine0.yaml $A/sched_wsd.yaml
 # 006 depth vs width; checkpoints kept for the induction-head timing analysis (C3)

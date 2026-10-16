@@ -81,4 +81,27 @@ across each method's 3 seeds is reported at every L.
 - NoPE beats ALiBi at 4096: falsifies the extrapolation ranking and sides with Kazemnejad et al.
 - RoPE fails to beat learned positions by 2σ in distribution: no in-distribution advantage at 10M.
 
+## Amendment — 2026-10-16, after the first sinusoidal runs, before any run of the new variant
+
+**What happened.** `pos_sinusoidal` as configured adds the raw sin/cos table, RMS 1/√2 ≈ 0.71,
+to token embeddings initialized at std 0.02. Its seed-0 sweep reached 6.00 (2e-3), 5.46
+(4e-3), 5.40 (8e-3), and 6.23 at the edge extension (1.6e-2). Seeds 1–2 at 8e-3 gave 5.62
+and 5.06. The table is ~35× larger than the token embeddings and drowns out token identity.
+That is a real result for this configuration, and it stays in the report. But it does not
+test fixed sinusoidal positions in the sense this preregistration intended, and the
+in-distribution prediction above (within ±0.008 of learned) does not apply to it.
+
+**Diagnosis** (6 × 128 model on TinyStories, 200 steps). Raw table: 6.08 nats at LR
+1e-3 and 4e-3, near unigram level. Table rescaled to RMS 0.02: 4.40 at 1e-3 and 4.24 at
+4e-3, against 4.41 and 4.13 for learned positions.
+
+**New variant:** `pos_sinusoidal_scaled`. Same fixed table, rescaled to RMS 0.02, the
+learned table's starting magnitude, so the only difference from the baseline is "fixed
+pattern vs learned table". The scale was chosen by that principle, not by the tiny-model
+numbers. Shared protocol, 5 runs.
+
+**Predictions for `pos_sinusoidal_scaled`.** In distribution, Δ against learned within
+±0.015, most likely inconclusive. Extrapolation: loss at 2048 ≥ its own 512 loss + 0.3,
+as predicted above for sinusoidal positions.
+
 ## Outcome *(filled in after)*

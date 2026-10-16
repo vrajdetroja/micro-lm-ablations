@@ -52,6 +52,9 @@ class Transformer(nn.Module):
         init_std / sqrt(2 * n_layer) so the residual stream's variance does not grow with
         depth (GPT-2). Biases start at zero, norm gains at one. Padding rows are zeroed."""
         cfg = self.cfg
+        if cfg.init_scheme == "torch":
+            self._torch_init()
+            return
         resid_std = cfg.init_std / math.sqrt(2 * cfg.n_layer) if cfg.scale_residual_init else cfg.init_std
         for module in self.modules():
             if isinstance(module, (nn.Linear, nn.Embedding)):
@@ -63,6 +66,30 @@ class Transformer(nn.Module):
                 nn.init.ones_(module.weight)
                 if getattr(module, "bias", None) is not None:
                     nn.init.zeros_(module.bias)
+        self.tok_emb.weight[cfg.vocab_size :].zero_()
+        if self.head is not None:
+            self.head.weight[cfg.vocab_size :].zero_()
+
+    @torch.no_grad()
+    def _torch_init(self) -> None:
+        """nn.TransformerEncoderLayer's initialization: Xavier-uniform on the fused QKV matrix
+        (as nn.MultiheadAttention's in_proj), PyTorch's default Linear init (Kaiming-uniform,
+        a=sqrt(5)) elsewhere, zero biases. Embeddings keep N(0, init_std), matching the
+        reference run that showed post-LN training under this scheme."""
+        cfg = self.cfg
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                module.reset_parameters()
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.Embedding):
+                nn.init.normal_(module.weight, mean=0.0, std=cfg.init_std)
+            elif isinstance(module, (LayerNorm, RMSNorm)):
+                nn.init.ones_(module.weight)
+                if getattr(module, "bias", None) is not None:
+                    nn.init.zeros_(module.bias)
+        for block in self.blocks:
+            nn.init.xavier_uniform_(block.attn.qkv.weight)
         self.tok_emb.weight[cfg.vocab_size :].zero_()
         if self.head is not None:
             self.head.weight[cfg.vocab_size :].zero_()
@@ -123,7 +150,10 @@ class Transformer(nn.Module):
                 )
             x = x + self.pos_emb(torch.arange(T, device=idx.device))
         elif cfg.pos_type == "sinusoidal":
-            x = x + sinusoidal_table(T, cfg.d_model, idx.device).to(x.dtype)
+            table = sinusoidal_table(T, cfg.d_model, idx.device)
+            if cfg.sinusoidal_rms is not None:  # the raw table's RMS is exactly 1/sqrt(2)
+                table = table * (cfg.sinusoidal_rms * math.sqrt(2.0))
+            x = x + table.to(x.dtype)
 
         ctx = self._context(T, idx.device, naive_attn, probs_hook)
         for block in self.blocks:

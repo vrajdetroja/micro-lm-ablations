@@ -141,3 +141,31 @@ def test_param_tags_survive_device_move():
     m = Transformer(tiny(ffn_type="swiglu")).to(torch.float64)
     assert m.blocks[0].attn.qkv.weight.muon_split == (64, 64, 64)
     assert m.blocks[0].mlp.up.weight.muon_split == (m.cfg.ffn_hidden,) * 2
+
+
+def test_torch_init_scheme():
+    torch.manual_seed(0)
+    m = Transformer(tiny(init_scheme="torch", norm_position="post"))
+    d = 64
+    qkv = m.blocks[0].attn.qkv.weight  # (3d, d): Xavier-uniform bound sqrt(6 / (d + 3d))
+    assert abs(qkv.abs().max().item() - (6 / (4 * d)) ** 0.5) < 0.02
+    up = m.blocks[0].mlp.up.weight  # PyTorch default Linear: U(+-1/sqrt(fan_in))
+    assert up.abs().max().item() <= 1 / d**0.5 + 1e-6 and up.std().item() > 0.05
+    assert abs(m.tok_emb.weight[:300].std().item() - 0.02) < 0.002
+    m.check_param_counts()
+
+
+def test_sinusoidal_rms():
+    from microlm.model.pos import sinusoidal_table
+
+    assert abs(sinusoidal_table(100, 64).pow(2).mean().sqrt().item() - 2 ** -0.5) < 1e-6
+    torch.manual_seed(0)
+    a = Transformer(tiny(pos_type="sinusoidal", sinusoidal_rms=0.02))
+    idx = torch.randint(0, 300, (1, 16))
+    with torch.no_grad():
+        x_tok = a.tok_emb(idx)
+        out = []
+        a.blocks[0].register_forward_pre_hook(lambda mod, args: out.append(args[0]))
+        a(idx)
+    pe = out[0] - x_tok
+    assert abs(pe.pow(2).mean().sqrt().item() - 0.02) < 1e-4

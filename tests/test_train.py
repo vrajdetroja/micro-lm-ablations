@@ -285,3 +285,17 @@ def test_wrong_types_fail_with_the_field_name():
         load_run_config("configs/baseline.yaml", ["train.lr=fast"])
     with pytest.raises(ValueError, match="model.n_layer must be int"):
         load_run_config("configs/baseline.yaml", ["model.n_layer=6.5"])
+
+
+@pytest.mark.parametrize("config,overrides,expected", [
+    ("configs/baseline.yaml", ["train.lr=0.004", "train.seed=3"], "baseline__31a6c6843b"),
+    ("configs/baseline.yaml", ["train.lr=0.002", "train.seed=0"], "baseline__3b89ac5f65"),
+    ("configs/ablations/pos_rope.yaml", ["train.lr=0.004", "train.seed=0"], "pos_rope__023e84e51d"),
+    ("configs/ablations/ffn_geglu.yaml", ["train.lr=0.004", "train.seed=0"], "ffn_geglu__ca93f8ac3f"),
+])
+def test_finished_runs_keep_their_ids(config, overrides, expected):
+    # Real IDs of finished runs. If a code change alters them, the protocol scripts would
+    # re-run finished work; late-added fields must stay out of the hash at their defaults.
+    r = load_run_config(config, overrides)
+    r.model.vocab_size = 8192
+    assert r.run_id("7cb8d6a46f11f26e:a101f5ae9b99271e") == expected
