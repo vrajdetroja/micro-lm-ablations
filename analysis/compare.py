@@ -99,8 +99,20 @@ def main() -> None:
         return
 
     by_name: dict[str, list[dict]] = defaultdict(list)
+    base_data = next((r.get("train.data_dir") for r in comparable(rows) if r["name"] == args.baseline), None)
+    skipped: dict[str, set] = defaultdict(set)
     for r in comparable(rows):
+        # Ladder points are other model sizes: analysis/scaling.py compares them, not this table.
+        if r["name"].startswith("ladder_"):
+            skipped["ladder (see analysis/scaling.py)"].add(r["name"])
+            continue
+        # Per-token loss is not comparable across tokenizers; those runs are judged in BPB only.
+        if args.metric == "val_iid_loss" and base_data and r.get("train.data_dir") != base_data:
+            skipped["other tokenizer (use --metric val_iid_bpb)"].add(r["name"])
+            continue
         by_name[r["name"]].append(r)
+    for why, names in skipped.items():
+        print(f"not in this table, {why}: {', '.join(sorted(names))}")
     repeats = [r for r in rows if r["name"] == f"{args.baseline}_repeat"]
     if args.baseline not in by_name:
         raise SystemExit(f"no runs named {args.baseline!r}")

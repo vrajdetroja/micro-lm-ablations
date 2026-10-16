@@ -46,4 +46,27 @@ per-token loss), and it would mislead.
 - The ranking by BPB matches the ranking by nats per token: the measurement subtlety does
   not matter here.
 
-## Outcome *(filled in after)*
+## Outcome *(filled in 2026-10-17)*
+
+All best at LR 4e-3 (interior). Noise floor in BPB: 2σ_seed = 0.0027, and 2σ_pooled = 0.0083
+(48 df, unstable variants excluded as preregistered). Every Δ clears both.
+
+| Vocab | Layers | BPB | Δ BPB | Verdict | Predicted Δ | Nats/token |
+|---|---|---|---|---|---|---|
+| 2,048 | 7 | 1.3703 | **+0.0485** | worse | +0.010 to +0.030 (**missed**, larger) | 2.838 |
+| 4,096 | 7 | 1.3460 | **+0.0242** | worse | ±0.006 (**missed**) | 3.230 |
+| 8,192 (baseline) | 6 | 1.3218 | — | — | — | 3.591 |
+| **16,384** | 4 | **1.3053** | **−0.0165** | **better** | +0.005 to +0.025 (**falsified**) | 3.905 |
+
+- **Hypothesis falsified.** At equal training FLOPs and matched total parameters, BPB
+  improves steadily with vocabulary size up to the largest tested (16k), even though the 16k
+  model has only 4 layers. Seeing more text (993 MB against 835 MB) beat losing two layers.
+  The optimum is at 16k or above; 32k was not tested.
+- **Falsifiers:** "16k better than 8k by ≥ 2σ" was **triggered**. "2k within 2σ of 8k" was
+  not triggered.
+- **Measured per token, the ranking is exactly reversed** (2k looks best, 16k worst). The
+  prediction that the two orderings differ **held**; the falsifier "BPB ranking matches the
+  nats ranking" was not triggered. Comparing tokenizers per token would have produced the
+  opposite conclusion.
+- **Predictions held: 1 of 5.**
+

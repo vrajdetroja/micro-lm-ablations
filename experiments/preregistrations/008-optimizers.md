@@ -41,4 +41,26 @@ Jordan et al. (2024) report Muon's gains in the modded-nanoGPT speedrun at 124M.
 - Muon's gain vanishing (|Δ| < 2σ) at equal wallclock.
 - Lion beating Muon.
 
-## Outcome *(filled in after)*
+## Outcome *(filled in 2026-10-17)*
+
+Δ against AdamW (3.5908 nats). Noise floor: 2σ_seed = 0.0072, and 2σ_pooled = 0.0236 (42 df,
+unstable variants excluded as preregistered).
+
+| Optimizer | Seed-0 sweep (nats) | Best | Mean | Δ | Verdict | Predicted Δ |
+|---|---|---|---|---|---|---|
+| **Muon** | muon_lr 0.01: 3.499 · 0.02: 3.483 · **0.04: 3.477** · 0.08 (edge ext.): 3.522 | 0.04 | 3.4759 | **−0.115** | **better** | −0.015 to −0.045 (**missed**, ~3× larger) |
+| Lion | LR 2e-4: 3.860 · **4e-4: 3.685** · 8e-4: 3.788 | 4e-4 | 3.6797 | **+0.089** | **worse** | ±0.02 (**missed**) |
+
+- **Muon at equal wallclock:** −0.070, 61% of its equal-steps gain. Muon runs at 829k
+  tokens/s against AdamW's ~947k on the same card (12% slower). "At least half survives":
+  **held.**
+- Even Muon's worst LR (3.499) beats AdamW's best (3.591).
+- **Lion's optimum is sharp:** its neighbours are 0.10 and 0.18 worse. **Held.** Its weight
+  decay was fixed at 1.0, and three 2×-spaced LRs may under-tune a method this sensitive.
+  That caveat belongs next to its verdict.
+- **Ranking:** Muon < AdamW < Lion, against the predicted Muon < AdamW ≈ Lion.
+- **Falsifiers** (Muon within 2σ; Muon's gain vanishing at equal wallclock; Lion beating
+  Muon): none triggered.
+- **Predictions held: 2 of 5.** Muon's gain is the largest improvement from any single change
+  at the unit scale.
+
