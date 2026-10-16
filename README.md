@@ -1,232 +1,120 @@
 # micro-lm-ablations
 
-**What actually matters at 10M parameters?** A controlled study of
-architecture and optimization choices in small transformer language models, built from
-scratch, with a measured seed-variance noise floor and every comparison matched on
-parameters, tokens, or FLOPs.
+**What actually matters at 10M parameters?** A preregistered, controlled ablation study of
+small transformer language models. It compares 24 architecture, initialization, schedule,
+tokenizer, and optimizer variants against a vanilla GPT-2-style baseline. Every comparison is
+matched on parameters and tokens, each variant gets its own learning-rate sweep, and every
+result is judged against a measured noise floor.
 
-The subject is a language model; the deliverable is the experimental method. Every result
-is reported against a noise floor σ (the standard deviation over baseline seeds), and any
-effect smaller than 2σ is reported as **inconclusive**, not as a finding.
+The full write-up is **[REPORT.md](REPORT.md)**.
 
-> **Status:** all experiments are done (196 GPU runs). Every preregistration (001–009)
-> has its Outcome filled in, and every number regenerates from `results/all_runs.csv`
-> (`analysis/compare.py`, `tier_a_secondary.py`, `scaling.py`). **Read the report:
-> [`REPORT.md`](REPORT.md)** (draft), with 15 figures in `results/figures/`
-> (`python analysis/figures.py`).
+## Findings
 
-## Findings so far (10.6M params, 212M tokens, 3 seeds per variant, Δ in nats vs. baseline 3.5908)
+10.6M non-embedding parameters, 212M FineWeb-Edu tokens, 3 seeds per variant, each at its own
+best LR. Δ is in nats/token against the baseline's 3.5908.
 
 | | Result |
 |---|---|
-| Noise floor | σ_seed = 0.0036 (5 seeds); **78% of it is GPU kernel non-determinism** (same-seed repeats) |
-| Clearly better | RoPE −0.084 · ALiBi −0.059 · WSD schedule −0.036 |
-| Clearly worse | NoPE +0.129 · fixed sinusoid +0.047 · no final norm +0.038 · any depth ≠ 6 layers (+0.06 to +0.17) |
+| Noise floor | σ_seed = 0.0036 over 5 seeds; **78% of it is GPU kernel non-determinism** (same-seed repeats) |
+| Better | Muon −0.115 · RoPE −0.084 · ALiBi −0.059 · WSD schedule −0.036 |
+| Worse | NoPE +0.129 · fixed sinusoid +0.047 · no final norm +0.038 · standard init +0.054 · any depth other than 6 layers (+0.06 to +0.17) · Lion +0.089 |
 | Small, threshold-sensitive | SwiGLU / GEGLU / ReLU² −0.013 to −0.022 |
-| Null | RMSNorm vs LayerNorm · linear vs cosine decay |
-| Post-LN | collapses to the unigram solution under GPT-2 init at every LR; trains only with standard init **and** long warmup, still +0.21 behind pre-LN |
-| Length extrapolation | only ALiBi (loss at 4096 ≤ loss at 512); NoPE degrades most |
-| Out of distribution (code) | RoPE and ALiBi are *worse* than learned positions despite winning in distribution |
-| Depth | deeper models copy better (induction probe) but model language worse |
-| Induction heads (exploratory) | form between steps 400 and 800 (52M–105M tokens) at every depth; depth changes how strong they get, not when |
-| Method | variant-dependent noise: unstable configs are 3–10× noisier than the baseline, so a baseline-only σ is optimistic |
-| Vocabulary (bits per byte, equal FLOPs) | 2k 1.370 · 4k 1.346 · 8k 1.322 · **16k 1.305**: bigger is better up to 16k even at 4 layers; per-token loss ranks them exactly backwards |
-| Optimizer | **Muon −0.115** (−0.070 at equal wallclock) · Lion +0.089 |
-| Scaling law | L(N) = 151 · N^−0.299 + 2.41, α 95% CI [0.26, 0.35], over 1.2M–18.9M params |
+| Null | RMSNorm vs. LayerNorm · linear vs. cosine decay |
+| Post-LN | collapses to the unigram solution under GPT-2 initialization at every LR; trains only with standard init **and** long warmup, and is still +0.21 behind pre-LN |
+| Vocabulary (bits per byte, equal FLOPs) | 2k 1.370 · 4k 1.346 · 8k 1.322 · **16k 1.305**; per-token loss ranks them exactly backwards |
+| Length extrapolation | only ALiBi (its loss at 4,096 is no higher than at the 512 training length); NoPE degrades most |
+| Out of distribution (code) | RoPE and ALiBi are *worse* than learned positions, despite winning in distribution |
+| Depth | deeper models copy in context better (induction probe) but model language worse |
+| Scaling law | L(N) = 151 · N^−0.299 + 2.41, α 95% CI [0.26, 0.35], over 1.2M–18.9M parameters |
 | **RoPE across scale** | better at every width, but the gap shrinks steadily: −0.337 at 1.2M → −0.074 at 18.9M |
-| Predictions | **32 of 59 held.** Directions mostly right; effect sizes at 10M consistently underestimated |
+| Induction heads | form between steps 400 and 800 at every depth; depth changes their strength, not their timing |
+| Predictions | 32 of 59 preregistered numeric predictions held; effect sizes at 10M were consistently underestimated |
 
----
+## Method
 
-## Methodology (the rules every result in this repo follows)
+- **Noise floor first.** Five baseline seeds give σ_seed, and same-seed repeats isolate GPU
+  kernel noise. An effect is claimed only if it clears **2σ under two noise estimates**:
+  - σ_seed (2σ = 0.0072);
+  - σ_pooled, the within-variant spread pooled over all variants (2σ = 0.0236).
 
-1. **Noise floor first.** The baseline is trained with 5 seeds before any ablation. σ is
-   the std of final `val_iid` loss. Effects < 2σ are *inconclusive*.
-2. **Optimum-to-optimum, 3 seeds.** Every variant, the baseline included, gets its own LR
-   sweep: 3 learning rates 2× apart at seed 0 (extended if the best is at an edge), then 2
-   more seeds at its best LR. Comparisons are best LR vs. best LR (`analysis/compare.py`),
-   reported as mean ± range over 3 seeds. Choosing the LR on seed 0 biases that seed's
-   result low (the lucky draw wins). Every variant gets the identical protocol, so the bias
-   cancels in comparisons, and the report also gives the mean of the two fresh seeds alone.
-   `experiments/launch/protocol.py` runs the whole protocol unattended.
-3. **One change at a time, checked mechanically.** Every ablation is a YAML file that
-   inherits `configs/baseline.yaml`, generated by `configs/generate.py`. A run's ID is a hash
-   of every semantic config field plus the data hash, and
-   `python -m microlm.train.config A.yaml B.yaml` prints exactly which fields differ.
-4. **Identical data.** Every run reads the same frozen token stream in the same order. The
-   order depends only on `data_seed`, never on the model seed. The SHA-256 of every split is
-   asserted at the start of each run.
-5. **Preregistration.** Before each ablation a hypothesis, metric, meaningful effect size,
-   and falsification criterion are committed to `experiments/preregistrations/`. The report
-   lists predictions vs. outcomes.
-6. **Three matchings.** Results are reported at equal steps (equal data), equal FLOPs, and
-   equal wallclock.
-
-## The unit run
-
-| Property | Value |
-|---|---|
-| Model | 6 layers, d=384, 6 heads (d_head 64), GELU 4×, pre-LN LayerNorm, learned positions, tied embeddings |
-| Params | 10.62M non-embedding, 13.97M total |
-| Context | 512 (extrapolation evaluated to 4096, 8×) |
-| Vocab | 8192 (own BPE) |
-| Data | 212M tokens of FineWeb-Edu = 20 tokens per non-embedding param |
-| Batch | 131,072 tokens per step (256 windows), 1,620 steps, held constant for every unit-size run |
-| Optimizer | AdamW (β 0.9/0.95, WD 0.1), cosine to 10%, 200 warmup steps, clip 1.0 |
-
-## Compute arithmetic
-
-```
-6·N·D                       = 6 × 10.62M × 212M         = 1.35e16 FLOPs   (textbook)
-+ unembedding  6·d·V·D      = 6 × 384 × 8192 × 212M     = 0.40e16
-+ attention    12·L·T·d·D   = 12 × 6 × 512 × 384 × 212M = 0.30e16
-= total                                                   2.06e16 FLOPs per run
-```
-
-At this scale the textbook `6N` estimate undercounts by **34%**: the unembedding and
-attention terms are not small when `d` is only 384.
-
-Measured on an RTX 4090 (165 TFLOP/s dense bf16, `torch.compile`, NVIDIA PyTorch 2.10,
-`results/throughput.json`):
-
-| Config | Tokens/s | MFU | Minutes/run |
-|---|---|---|---|
-| baseline (6 × 384) | 935k | 55% | 3.8 |
-| depth: 2 × 640 | 1,046k | 62% | 3.4 |
-| depth: 24 × 192 | 704k | 43% | 5.0 |
-| vocab 16,384 | 994k | 54% | 3.8 |
-| Muon optimizer | 833k | 49% | 4.2 |
-| ladder d=128 (1.2M params) | 1,888k | 21% | 0.2 |
-
-Micro-batch size (32/64/128) changes throughput by under 1%; `max-autotune` compilation
-gains ~5% but costs ~50 s more compile per run, a wash at these run lengths. Deep-narrow
-models are slower per FLOP, as expected, which the depth-vs-width ablation reports as its
-equal-wallclock comparison.
+  Clearing one but not the other is *threshold-sensitive*; clearing neither is *inconclusive*.
+- **Optimum to optimum.** Every variant is swept at three LRs centered on the baseline's best,
+  extended past any edge, then run at two more seeds at its own best LR.
+- **Preregistration.** Each hypothesis, prediction, meaningful effect size, and falsifier was
+  committed before its runs. Amendments are dated and were committed before the runs they
+  affect, and every deviation is reported as one.
+- **Identical data.** Every run reads the same frozen token stream in the same order, with
+  SHA-256 verified at start. A run's ID hashes every config field that can change the
+  trained model, so "one change at a time" is mechanically checkable
+  (`python -m microlm.train.config A.yaml B.yaml`).
+- **Three matchings.** Results are reported at equal steps (equal tokens), equal FLOPs, and
+  equal wallclock. Vocabulary sizes are compared at equal FLOPs, in bits per byte.
 
 ## Conventions
 
 | Quantity | Definition |
 |---|---|
 | `N_non_embedding` | All weights except token/position embeddings and the LM head (Kaplan et al.'s N) |
-| `N_total` | Everything, excluding vocab padding rows. Every table reports both |
-| FLOPs/token | `6·N_non_emb + 6·d·V` (unembedding) `+ 12·L·T·d` (attention), PaLM appendix-B convention. MFU uses this |
-| BPB | Total nats over evaluated targets ÷ total UTF-8 bytes of those targets ÷ ln 2, computed exactly per token. Used whenever the tokenizer varies; per-token loss is not comparable across vocabularies |
-| Param-matched FFN | Gated FFNs (SwiGLU/GEGLU) get hidden size `(2/3)·4d` (= 1024 at d=384) so they have the same `8d²` weights as a 4d GELU FFN. Asserted in `tests/test_model.py` |
-| Vocab variants | Total params matched to the baseline by depth (within 4%), training tokens set for equal FLOPs (within 1%). Asserted in `tests/test_train.py` |
-| Scaling ladder | 6 layers, width 128–512, every point 1,620 steps at ~20 tokens/param, so tokens/step grows with N |
-| Precision | bf16 autocast, fp32 master weights, no `GradScaler` (it exists for fp16's exponent range) |
+| `N_total` | Everything, excluding vocab padding rows |
+| FLOPs/token | `6·N_non_emb + 6·d·V` (unembedding) `+ 12·L·T·d` (attention), PaLM appendix-B convention. The textbook 6N undercounts by 34% at d = 384 |
+| Bits per byte | Total nats over evaluated targets ÷ total UTF-8 bytes of those targets ÷ ln 2, exact per token |
+| Parameter-matched FFN | Gated FFNs get hidden size (2/3)·4d, so every FFN has 8d² weights |
+| Precision | bf16 autocast, fp32 master weights |
 
 ## Repository
 
 ```
 src/microlm/
-  tokenizer/   byte-level BPE: incremental trainer + naive reference, encoder/decoder
-  data/        download, content-hash split, tokenize to uint16 memmap, manifest, loader
-  model/       config-switched components: attention (MHA/GQA/MQA, QK-norm), FFN
-               (GELU/SwiGLU/GEGLU/ReLU²), norms (LN/RMS, pre/post), positions
-               (learned/sinusoidal/RoPE/ALiBi/NoPE), param + FLOP accounting
-  train/       loop, AdamW/Lion/Muon, schedules (cosine/linear/WSD/constant),
-               exact-resume checkpoints, run config + hashing
-  eval/        val loss & BPB, loss by position, length extrapolation, induction probe
-configs/       baseline.yaml, smoke.yaml, generate.py → ablations/ (21), ladder/ (4), reserve/ (9)
-experiments/   preregistrations/, launch/ (sweep, throughput bench), protocol/ (one script
-               per stage), prepare_data.sh
-analysis/      collect.py (runs → results/all_runs.csv), compare.py (2σ verdicts)
+  tokenizer/   byte-level BPE: incremental trainer (exactly matches a naive reference), encoder/decoder
+  data/        content-hash splits, uint16 memmaps, SHA-256 manifests, deterministic window order
+  model/       config-switched transformer: positions (learned/sinusoidal/RoPE/ALiBi/NoPE),
+               attention (MHA/GQA/MQA, QK-norm), FFN (GELU/SwiGLU/GEGLU/ReLU²), norms
+               (LayerNorm/RMSNorm, pre/post), init schemes, parameter and FLOP accounting
+  train/       training loop, AdamW/Lion/Muon, schedules (cosine/linear/WSD), exact-resume
+               checkpoints, run configs and hashing
+  eval/        loss and bits per byte, loss by position, length extrapolation, induction probe
+configs/       baseline.yaml; generate.py writes ablations/, ladder/, reserve/ (designed, not run)
+experiments/   preregistrations/, protocol/ (one script per stage), launch/
+               (LR-sweep protocol, sweep runner, throughput benchmark), prepare_data.sh
+analysis/      collect.py → results/all_runs.csv; compare.py (verdicts); tier_a_secondary.py;
+               scaling.py; induction_timing.py; check_resume.py; figures.py
+results/       all_runs.csv, scaling.json, figures/
 tests/         113 tests
 ```
 
-### Things the tests pin down
+## Reproduction
 
-- `decode(encode(x)) == x` for random text with emoji, CJK, zero-width characters, and lone
-  surrogates, and for arbitrary (invalid UTF-8) bytes.
+```bash
+python -m venv .venv && .venv/bin/pip install -e ".[data,dev]" && .venv/bin/pytest
+bash experiments/prepare_data.sh                         # download, tokenizers, frozen data
+bash experiments/protocol/00_validation.sh               # throughput, resume determinism
+bash experiments/protocol/01_noise_floor.sh              # preregistration 001
+bash experiments/protocol/02_tier_a.sh                   # 002–006
+bash experiments/protocol/03_tier_b_and_scaling.sh       # 007–009
+python analysis/collect.py && python analysis/compare.py --exclude-unstable
+python analysis/tier_a_secondary.py && python analysis/scaling.py
+python analysis/induction_timing.py && python analysis/figures.py
+```
+
+The runs reported here used one NVIDIA RTX 4090 (PyTorch 2.10, `torch.compile`), training the
+unit model at 55% MFU. Every training command is idempotent: finished runs are skipped, and
+interrupted runs resume from their last checkpoint. Data hashes for every split are listed in
+REPORT.md §9.
+
+## What the tests pin down
+
+- `decode(encode(x)) == x` for random text, including emoji, CJK, and lone surrogates, and
+  for arbitrary invalid-UTF-8 bytes.
 - The incremental BPE trainer produces exactly the naive trainer's merges.
 - Analytic parameter counts equal the instantiated module's for every variant, and gated
-  FFNs are within 0.5% of the GELU baseline. An unmatched SwiGLU would fail the test.
-- The SDPA (Flash) attention path equals a naive softmax reference for every positional variant.
-- On CPU, a run interrupted at step 6 and resumed is **bitwise identical** to an
-  uninterrupted run, for AdamW, Lion, and Muon. Resuming also works on an accelerator.
-- On the 4090, training is **not** deterministic: two fresh runs with the same seed and
-  config are bitwise equal for 2 steps, differ by ~5e-6 at step 3 (non-deterministic kernel
-  reductions), and by ~0.007 nats on average over steps 81–100 as warmup amplifies the
-  difference. The noise floor σ therefore includes kernel noise, and the noise-floor runs
-  measure it separately.
-- Flipping one bit of a frozen `.bin` makes every run refuse to start.
-
-## Workflow
-
-Setup and tests:
-
-```bash
-python -m venv .venv && .venv/bin/pip install -e ".[data,dev]"
-.venv/bin/pytest
-```
-
-Freeze the data (two FineWeb-Edu shards, ~4.3 GB download), then run the protocol scripts
-in order. Each one names the preregistration it tests.
-
-```bash
-bash experiments/prepare_data.sh
-bash experiments/protocol/00_validation.sh
-bash experiments/protocol/01_noise_floor.sh
-bash experiments/protocol/02_tier_a.sh
-bash experiments/protocol/03_tier_b_and_scaling.sh
-python analysis/collect.py && python analysis/compare.py
-```
-
-Every training command is idempotent. Finished runs are skipped and interrupted runs resume
-from their last checkpoint, so an interrupted script is simply run again.
-
-A CPU smoke test (TinyStories validation shard, about 1 minute) is in `configs/smoke.yaml`.
-
-## Data splits
-
-Documents are assigned to splits by a hash of their **content** (`blake2b(text) mod 1000`).
-This does not depend on file order or shard selection, and exact duplicates can never
-straddle train and validation.
-
-| Split | Rule | Size |
-|---|---|---|
-| `val_iid` | hash < 10, first 40 MB of text | 8,322 docs; defined in bytes so every tokenizer sees identical text |
-| `val_long` | 10 ≤ hash < 110 and ≥ 24 KB | 500 docs (21.9 MB, mean 11.7k tokens at 8k vocab); for length extrapolation |
-| `val_ood` | Python source (codeparrot-clean-valid) | 819 files, 8 MB |
-| `train` | everything else | 450M tokens at 8k vocab (the 18.9M ladder point needs 378M); 260M for the other vocabs |
-
-Frozen (`bash experiments/prepare_data.sh`, about 15 minutes on CPU):
-
-| Data | Train tokens | Bytes/token | val_iid tokens | Size |
-|---|---|---|---|---|
-| `bpe_2048` | 260.0M | 2.995 | 13.39M | 547 MB |
-| `bpe_4096` | 260.0M | 3.472 | 11.56M | 541 MB |
-| `bpe_8192` | 450.0M | 3.932 | 10.21M | 905 MB |
-| `bpe_16384` | 260.0M | 4.335 | 9.27M | 533 MB |
-
-val_iid, val_long, and val_ood are byte-identical across all four (40,003,039 / 21,894,976 /
-8,011,097 bytes), which is what makes BPB comparable across vocabularies.
-
-## Tokenizer
-
-Byte-level BPE with the GPT-4 pre-tokenization regex, written from scratch. BPE's merge
-sequence does not depend on the target vocab size, so one training run to 32,768 yields
-every smaller vocabulary as a prefix (`Tokenizer.truncated`).
-
-The trainer keeps incremental pair counts and a max-heap with lazy invalidation. It
-reproduces the naive trainer's merges exactly, 40× faster on a 300-merge slice of 2 MB, and
-the gap grows with the merge count. On the real 500 MB FineWeb-Edu sample (987k unique
-chunks) it learns all 32,511 merges in 147 s with 1.9 GB peak RAM.
-
-| Vocab | Bytes/token | Tokens/word |
-|---|---|---|
-| 257 | 1.00 | 6.10 |
-| 2,048 | 2.98 | 2.05 |
-| 4,096 | 3.45 | 1.77 |
-| 8,192 | 3.91 | 1.56 |
-| 16,384 | 4.30 | 1.42 |
-| 32,768 | 4.60 | 1.33 |
-
-(1,000 held-out sample documents.) Each doubling of the vocab buys less compression: +16%,
-+13%, +10%, +7%.
+  FFNs are within 0.5% of the GELU baseline.
+- The fused (SDPA) attention path equals a naive softmax reference for every positional
+  variant, and every variant is causal.
+- A resumed run is bitwise identical to an uninterrupted one on CPU, for AdamW, Lion, and Muon.
+- The IDs of finished runs survive code changes. Flipping one bit of a frozen split makes
+  every run refuse to start.
 
 ## References
 
-Narang et al. 2021 (*Do Transformer Modifications Transfer…*) is the methodological
-template.
+The methodological template is Narang et al. (2021), *Do Transformer Modifications Transfer
+Across Implementations and Applications?* Full references are in REPORT.md.
