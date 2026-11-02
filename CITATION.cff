@@ -6,6 +6,7 @@ authors:
   - family-names: Detroja
     given-names: Vraj
 version: 1.0.0
+doi: 10.5281/zenodo.23881228
 license: MIT
 repository-code: "https://github.com/vrajdetroja/micro-lm-ablations"
 abstract: >-

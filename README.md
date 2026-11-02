@@ -1,5 +1,7 @@
 # micro-lm-ablations
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23881228.svg)](https://doi.org/10.5281/zenodo.23881228)
+
 **What actually matters at 10M parameters?** A preregistered, controlled ablation study of
 small transformer language models. It compares 24 architecture, initialization, schedule,
 tokenizer, and optimizer variants against a vanilla GPT-2-style baseline. Every comparison is
@@ -127,7 +129,8 @@ Across Implementations and Applications?* Full references are in REPORT.md.
   title        = {What Actually Matters at 10M Parameters? A Preregistered Ablation
                   Study of Small Transformer Language Models},
   year         = {2026},
-  howpublished = {\url{https://github.com/vrajdetroja/micro-lm-ablations}}
+  howpublished = {\url{https://github.com/vrajdetroja/micro-lm-ablations}},
+  doi          = {10.5281/zenodo.23881228}
 }
 ```
 
