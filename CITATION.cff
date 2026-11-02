@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+type: software
+title: "What Actually Matters at 10M Parameters? A Preregistered Ablation Study of Small Transformer Language Models"
+authors:
+  - family-names: Detroja
+    given-names: Vraj
+version: 0.1.0
+license: MIT
+repository-code: "https://github.com/vrajdetroja/micro-lm-ablations"
+abstract: >-
+  A preregistered, controlled ablation study of 10M-parameter transformer language
+  models. It compares 24 architecture, initialization, schedule, tokenizer, and
+  optimizer variants against a GPT-2-style baseline, each at its own best learning
+  rate, matched on parameters and tokens, and judged against a measured noise floor.
+keywords:
+  - language models
+  - transformers
+  - ablation study
+  - preregistration
+  - scaling laws

@@ -118,3 +118,19 @@ REPORT.md §9.
 
 The methodological template is Narang et al. (2021), *Do Transformer Modifications Transfer
 Across Implementations and Applications?* Full references are in REPORT.md.
+
+## Citation
+
+```bibtex
+@misc{detroja2026microlm,
+  author       = {Detroja, Vraj},
+  title        = {What Actually Matters at 10M Parameters? A Preregistered Ablation
+                  Study of Small Transformer Language Models},
+  year         = {2026},
+  howpublished = {\url{https://github.com/vrajdetroja/micro-lm-ablations}}
+}
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
