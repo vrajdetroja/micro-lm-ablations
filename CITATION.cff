@@ -5,7 +5,7 @@ title: "What Actually Matters at 10M Parameters? A Preregistered Ablation Study 
 authors:
   - family-names: Detroja
     given-names: Vraj
-version: 0.1.0
+version: 1.0.0
 license: MIT
 repository-code: "https://github.com/vrajdetroja/micro-lm-ablations"
 abstract: >-

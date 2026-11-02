@@ -4,9 +4,9 @@
 
 Vraj Detroja
 
-*Draft, October 2026. Code, configs, frozen-data hashes, a summary row for every run
-(`results/all_runs.csv`), and the preregistrations are in this repository. Every number below regenerates from that file with the scripts in
-`analysis/`.*
+*October 2026. Code, configs, frozen-data hashes, a summary row for every run
+(`results/all_runs.csv`), and the preregistrations are in this repository. Every number
+below regenerates from that file with the scripts in `analysis/`.*
 
 ---
 
